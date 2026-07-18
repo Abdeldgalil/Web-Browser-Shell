@@ -20,9 +20,11 @@ function safeAreaBottom(): number {
 
 /**
  * Manages the embedded native WebView (via @capgo/capacitor-inappbrowser).
- * The plugin renders a real native WebView positioned/sized behind our
- * transparent HTML UI (toolbar + url bar), which is how content becomes
- * visible without hitting X-Frame-Options restrictions an <iframe> would.
+ * The plugin renders a real native WebView sized/positioned in the area
+ * between the url bar and the toolbar (in front of the Capacitor host
+ * webview, so it can actually receive touch input). All dimensions passed
+ * to the plugin must be in device pixels, so every CSS-pixel measurement is
+ * multiplied by window.devicePixelRatio before being sent.
  * When currentUrl is the app's own HOME_URL sentinel, no native webview is
  * opened at all — our own <HomePage/> renders instead.
  */
@@ -65,19 +67,19 @@ function BrowserHost() {
       }
 
       setIsLoading(true);
-      const width = window.innerWidth;
-      const height = window.innerHeight - urlBarHeight - toolbarHeight;
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.round(window.innerWidth * dpr);
+      const height = Math.round((window.innerHeight - urlBarHeight - toolbarHeight) * dpr);
+      const yPx = Math.round(urlBarHeight * dpr);
 
       if (!webviewIdRef.current) {
         const { id } = await InAppBrowser.openWebView({
           url: currentUrl,
           toolbarType: 'blank',
-          toBack: true,
-          transparentBackground: true,
           width,
           height,
           x: 0,
-          y: urlBarHeight,
+          y: yPx,
         } as any);
         if (cancelled) return;
         webviewIdRef.current = id ?? null;
@@ -90,12 +92,10 @@ function BrowserHost() {
           const { id } = await InAppBrowser.openWebView({
             url: currentUrl,
             toolbarType: 'blank',
-            toBack: true,
-            transparentBackground: true,
             width,
             height,
             x: 0,
-            y: urlBarHeight,
+            y: yPx,
           } as any);
           webviewIdRef.current = id ?? null;
         }
@@ -114,12 +114,13 @@ function BrowserHost() {
     if (!isNative || isHome) return;
     const resize = () => {
       if (!webviewIdRef.current) return;
+      const dpr = window.devicePixelRatio || 1;
       InAppBrowser.updateDimensions({
         id: webviewIdRef.current,
-        width: window.innerWidth,
-        height: window.innerHeight - urlBarHeight - toolbarHeight,
+        width: Math.round(window.innerWidth * dpr),
+        height: Math.round((window.innerHeight - urlBarHeight - toolbarHeight) * dpr),
         x: 0,
-        y: urlBarHeight,
+        y: Math.round(urlBarHeight * dpr),
       } as any).catch(() => {});
     };
     window.addEventListener('resize', resize);
