@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Lock, Globe, Search, X } from 'lucide-react';
 import { useColors, useColorScheme } from '../hooks/useColors';
 import { useBrowser, normalizeUrl, getDisplayUrl } from '../context/BrowserContext';
 
-export const URL_BAR_CONTENT_HEIGHT = 38;
+export const URL_BAR_CONTENT_HEIGHT = 40;
 export const URL_BAR_BOTTOM_PAD = 10;
 
 export default function UrlBar() {
@@ -43,7 +44,7 @@ export default function UrlBar() {
     <div
       className="urlbar"
       style={{
-        background: isDark ? 'rgba(28,28,30,0.85)' : 'rgba(242,242,247,0.85)',
+        background: isDark ? 'rgba(28,28,30,0.72)' : 'rgba(248,248,250,0.72)',
         paddingBottom: URL_BAR_BOTTOM_PAD,
       }}
     >
@@ -54,13 +55,13 @@ export default function UrlBar() {
             style={{ background: colors.urlBar, height: URL_BAR_CONTENT_HEIGHT }}
             onClick={() => setFocused(true)}
           >
-            <span className="urlbar-lock">
-              {isHttps ? '🔒' : '🌐'}
+            <span className="urlbar-lock" style={{ color: colors.mutedForeground }}>
+              {isHttps ? <Lock size={13} strokeWidth={2.5} /> : <Globe size={13} strokeWidth={2.25} />}
             </span>
             <span className="urlbar-text" style={{ color: colors.foreground }}>
               {displayUrl}
             </span>
-            {isLoading && <span className="urlbar-spinner" />}
+            {isLoading && <span className="urlbar-spinner" style={{ borderColor: colors.mutedForeground }} />}
           </button>
         ) : (
           <form className="urlbar-form" onSubmit={handleSubmit}>
@@ -68,7 +69,7 @@ export default function UrlBar() {
               className="urlbar-input-container"
               style={{ background: colors.urlBar, height: URL_BAR_CONTENT_HEIGHT }}
             >
-              <span className="urlbar-search-icon">🔍</span>
+              <Search size={15} strokeWidth={2.25} color={colors.mutedForeground} />
               <input
                 ref={inputRef}
                 className="urlbar-input"
@@ -88,8 +89,9 @@ export default function UrlBar() {
                   type="button"
                   className="urlbar-clear"
                   onClick={() => setInputValue('')}
+                  style={{ color: colors.mutedForeground }}
                 >
-                  ✕
+                  <X size={15} strokeWidth={2.5} />
                 </button>
               )}
             </div>
