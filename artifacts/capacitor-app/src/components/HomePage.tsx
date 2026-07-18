@@ -15,6 +15,7 @@ const QUICK_SITES = [
 interface NewsItem {
   title: string;
   link: string;
+  image?: string;
 }
 
 export default function HomePage() {
@@ -31,7 +32,11 @@ export default function HomePage() {
       .then((data) => {
         if (data?.items) {
           setNews(
-            data.items.slice(0, 6).map((it: any) => ({ title: it.title, link: it.link }))
+            data.items.slice(0, 8).map((it: any) => ({
+              title: it.title,
+              link: it.link,
+              image: it.thumbnail || it.enclosure?.link || undefined,
+            }))
           );
         } else {
           setNewsError(true);
@@ -142,7 +147,13 @@ export default function HomePage() {
                 style={{ borderBottomColor: colors.border }}
                 onClick={() => navigate(item.link)}
               >
-                <Newspaper size={16} strokeWidth={2} color={colors.mutedForeground} />
+                {item.image ? (
+                  <img src={item.image} className="home-news-thumb" alt="" />
+                ) : (
+                  <div className="home-news-thumb home-news-thumb-fallback" style={{ background: colors.muted }}>
+                    <Newspaper size={18} strokeWidth={2} color={colors.mutedForeground} />
+                  </div>
+                )}
                 <span className="home-news-title" style={{ color: colors.foreground }}>
                   {item.title}
                 </span>
