@@ -422,14 +422,26 @@ button {
 }
 .home-news-item {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 2px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
   border-bottom: 1px solid;
   text-align: left;
 }
 .home-news-item:active {
   opacity: 0.6;
+}
+.home-news-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.home-news-thumb-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .home-news-title {
   font-size: 14px;
