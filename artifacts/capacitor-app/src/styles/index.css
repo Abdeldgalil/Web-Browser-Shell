@@ -1,0 +1,294 @@
+/* ── Reset ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font: inherit;
+  padding: 0;
+}
+
+/* ── App root ──────────────────────────────────────────── */
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Web area (content behind toolbars) ───────────────── */
+.web-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* ── Dev fallback card ─────────────────────────────────── */
+.dev-fallback {
+  max-width: 340px;
+  width: 90%;
+  border-radius: 16px;
+  border: 1px solid;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.dev-fallback-icon { font-size: 48px; }
+.dev-fallback-title { font-size: 17px; font-weight: 600; }
+.dev-fallback-body  { font-size: 14px; line-height: 1.5; opacity: 0.75; }
+
+/* ── URL Bar ───────────────────────────────────────────── */
+.urlbar {
+  position: relative;
+  z-index: 100;
+  padding-top: env(safe-area-inset-top, 0px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+.urlbar-row {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+}
+
+.urlbar-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  padding: 0 12px;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.urlbar-lock { font-size: 14px; flex-shrink: 0; }
+
+.urlbar-text {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.urlbar-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(128,128,128,0.3);
+  border-top-color: #0A84FF;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: spin 0.7s linear infinite;
+}
+
+.urlbar-form {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.urlbar-input-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  padding: 0 10px;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.urlbar-search-icon { font-size: 14px; flex-shrink: 0; opacity: 0.5; }
+
+.urlbar-input {
+  flex: 1;
+  font-size: 15px;
+  background: transparent;
+  border: none;
+  outline: none;
+  min-width: 0;
+}
+
+.urlbar-clear {
+  font-size: 13px;
+  opacity: 0.5;
+  flex-shrink: 0;
+  padding: 2px 4px;
+}
+
+.urlbar-cancel {
+  font-size: 15px;
+  font-weight: 500;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+/* ── Toolbar ───────────────────────────────────────────── */
+.toolbar {
+  position: relative;
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid;
+}
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 8px;
+}
+
+.toolbar-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 20px;
+  transition: opacity 0.15s;
+}
+
+.toolbar-btn:disabled { opacity: 0.3; pointer-events: none; }
+
+/* ── Modals ────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: flex-end;
+}
+
+.modal-sheet {
+  width: 100%;
+  max-height: 75vh;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.modal-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  margin: 10px auto 8px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid;
+}
+
+.modal-title { font-size: 17px; font-weight: 600; }
+
+.modal-header-actions { display: flex; align-items: center; gap: 12px; }
+
+.modal-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-clear { font-size: 15px; font-weight: 500; }
+
+.modal-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 24px;
+}
+
+.modal-empty-icon { font-size: 40px; }
+.modal-empty-title { font-size: 17px; font-weight: 600; }
+.modal-empty-subtitle { font-size: 14px; text-align: center; line-height: 1.4; }
+
+.modal-list { flex: 1; overflow-y: auto; }
+
+.modal-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 12px;
+  border-bottom: 1px solid;
+  cursor: pointer;
+}
+
+.modal-row:active { opacity: 0.7; }
+
+.modal-favicon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.modal-info { flex: 1; min-width: 0; }
+
+.modal-item-title {
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal-item-url,
+.modal-item-meta {
+  font-size: 12px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal-remove {
+  font-size: 18px;
+  padding: 4px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* ── Animation ─────────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

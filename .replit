@@ -1,20 +1,44 @@
 modules = ["nodejs-24"]
+[agent]
+expertMode = true
 
-[deployment]
-router = "application"
-deploymentTarget = "autoscale"
+[[ports]]
+localPort = 5174
+externalPort = 3001
+exposeLocalhost = true
 
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 80
+
+[[ports]]
+localPort = 18115
+externalPort = 3000
+
+[nix]
+channel = "stable-25_05"
 
 [workflows]
 runButton = "Project"
 
-[agent]
-stack = "PNPM_WORKSPACE"
-expertMode = true
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
 
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Web-Browser-Shell-main/artifacts/capacitor-app: Browser App"
+
+[[workflows.workflow]]
+name = "Web-Browser-Shell-main/artifacts/capacitor-app: Browser App"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/capacitor-app run dev"
+waitForPort = 8080
