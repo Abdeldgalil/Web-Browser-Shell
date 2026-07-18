@@ -21,10 +21,9 @@ function safeAreaBottom(): number {
 /**
  * Manages the embedded native WebView (via @capgo/capacitor-inappbrowser).
  * The plugin renders a real native WebView sized/positioned in the area
- * between the url bar and the toolbar (in front of the Capacitor host
- * webview, so it can actually receive touch input). All dimensions passed
- * to the plugin must be in device pixels, so every CSS-pixel measurement is
- * multiplied by window.devicePixelRatio before being sent.
+ * between the url bar and the toolbar, in front of the Capacitor host
+ * webview (no toBack), so it can actually receive touch input. Dimensions
+ * are passed in CSS pixels, matching window.innerWidth/innerHeight.
  * When currentUrl is the app's own HOME_URL sentinel, no native webview is
  * opened at all — our own <HomePage/> renders instead.
  */
@@ -67,10 +66,9 @@ function BrowserHost() {
       }
 
       setIsLoading(true);
-      const dpr = window.devicePixelRatio || 1;
-      const width = Math.round(window.innerWidth * dpr);
-      const height = Math.round((window.innerHeight - urlBarHeight - toolbarHeight) * dpr);
-      const yPx = Math.round(urlBarHeight * dpr);
+      const width = window.innerWidth;
+      const height = window.innerHeight - urlBarHeight - toolbarHeight;
+      const yPx = urlBarHeight;
 
       if (!webviewIdRef.current) {
         const { id } = await InAppBrowser.openWebView({
@@ -114,13 +112,12 @@ function BrowserHost() {
     if (!isNative || isHome) return;
     const resize = () => {
       if (!webviewIdRef.current) return;
-      const dpr = window.devicePixelRatio || 1;
       InAppBrowser.updateDimensions({
         id: webviewIdRef.current,
-        width: Math.round(window.innerWidth * dpr),
-        height: Math.round((window.innerHeight - urlBarHeight - toolbarHeight) * dpr),
+        width: window.innerWidth,
+        height: window.innerHeight - urlBarHeight - toolbarHeight,
         x: 0,
-        y: Math.round(urlBarHeight * dpr),
+        y: urlBarHeight,
       } as any).catch(() => {});
     };
     window.addEventListener('resize', resize);
