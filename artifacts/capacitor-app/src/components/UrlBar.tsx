@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Lock, Globe, Search, X } from 'lucide-react';
 import { useColors, useColorScheme } from '../hooks/useColors';
-import { useBrowser, normalizeUrl, getDisplayUrl } from '../context/BrowserContext';
+import { useBrowser, normalizeUrl, getDisplayUrl, HOME_URL } from '../context/BrowserContext';
 
 export const URL_BAR_CONTENT_HEIGHT = 40;
 export const URL_BAR_BOTTOM_PAD = 10;
@@ -15,12 +15,13 @@ export default function UrlBar() {
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isHome = currentUrl === HOME_URL;
   const displayUrl = getDisplayUrl(currentUrl);
   const isHttps = currentUrl.startsWith('https://');
 
   useEffect(() => {
     if (focused) {
-      setInputValue(currentUrl);
+      setInputValue(isHome ? '' : currentUrl);
       const t = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(t);
     }
@@ -56,10 +57,19 @@ export default function UrlBar() {
             onClick={() => setFocused(true)}
           >
             <span className="urlbar-lock" style={{ color: colors.mutedForeground }}>
-              {isHttps ? <Lock size={13} strokeWidth={2.5} /> : <Globe size={13} strokeWidth={2.25} />}
+              {isHome ? (
+                <Search size={13} strokeWidth={2.25} />
+              ) : isHttps ? (
+                <Lock size={13} strokeWidth={2.5} />
+              ) : (
+                <Globe size={13} strokeWidth={2.25} />
+              )}
             </span>
-            <span className="urlbar-text" style={{ color: colors.foreground }}>
-              {displayUrl}
+            <span
+              className="urlbar-text"
+              style={{ color: isHome ? colors.mutedForeground : colors.foreground }}
+            >
+              {isHome ? 'Search or enter address' : displayUrl}
             </span>
             {isLoading && <span className="urlbar-spinner" style={{ borderColor: colors.mutedForeground }} />}
           </button>
