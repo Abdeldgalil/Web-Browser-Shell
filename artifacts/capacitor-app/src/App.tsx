@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { InAppBrowser } from '@capgo/capacitor-inappbrowser';
 import { useColors } from './hooks/useColors';
-import { BrowserProvider, useBrowser } from './context/BrowserContext';
+import { BrowserProvider, useBrowser, HOME_URL } from './context/BrowserContext';
 import UrlBar, { URL_BAR_CONTENT_HEIGHT, URL_BAR_BOTTOM_PAD } from './components/UrlBar';
 import Toolbar, { TOOLBAR_CONTENT_HEIGHT, TOOLBAR_TOP_PAD } from './components/Toolbar';
 import BookmarksModal from './components/BookmarksModal';
 import HistoryModal from './components/HistoryModal';
+import HomePage from './components/HomePage';
 
 function safeAreaTop(): number {
   const v = getComputedStyle(document.documentElement).getPropertyValue('--safe-top');
@@ -22,6 +23,8 @@ function safeAreaBottom(): number {
  * The plugin renders a real native WebView positioned/sized behind our
  * transparent HTML UI (toolbar + url bar), which is how content becomes
  * visible without hitting X-Frame-Options restrictions an <iframe> would.
+ * When currentUrl is the app's own HOME_URL sentinel, no native webview is
+ * opened at all — our own <HomePage/> renders instead.
  */
 function BrowserHost() {
   const colors = useColors();
@@ -39,17 +42,28 @@ function BrowserHost() {
   const [showHistory, setShowHistory] = useState(false);
   const webviewIdRef = useRef<string | null>(null);
   const isNative = Capacitor.isNativePlatform();
+  const isHome = currentUrl === HOME_URL;
 
   const urlBarHeight = safeAreaTop() + URL_BAR_CONTENT_HEIGHT + URL_BAR_BOTTOM_PAD;
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
 
-  // Open / reposition the embedded webview.
+  // Open / reposition / close the embedded webview.
   useEffect(() => {
     if (!isNative) return;
 
     let cancelled = false;
 
     async function openOrUpdate() {
+      if (isHome) {
+        // On the home page there's nothing to browse — close any open webview.
+        if (webviewIdRef.current) {
+          await InAppBrowser.close().catch(() => {});
+          webviewIdRef.current = null;
+        }
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       const width = window.innerWidth;
       const height = window.innerHeight - urlBarHeight - toolbarHeight;
@@ -93,11 +107,11 @@ function BrowserHost() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUrl, isNative]);
+  }, [currentUrl, isNative, isHome]);
 
   // Keep the native webview's size/position in sync with the toolbar/url bar.
   useEffect(() => {
-    if (!isNative) return;
+    if (!isNative || isHome) return;
     const resize = () => {
       if (!webviewIdRef.current) return;
       InAppBrowser.updateDimensions({
@@ -110,7 +124,7 @@ function BrowserHost() {
     };
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
-  }, [isNative, urlBarHeight, toolbarHeight]);
+  }, [isNative, isHome, urlBarHeight, toolbarHeight]);
 
   // Wire the goBack/goForward/reload controls used by the Toolbar.
   useEffect(() => {
@@ -176,19 +190,23 @@ function BrowserHost() {
       <UrlBar />
 
       <div className="web-area" style={{ paddingTop: urlBarHeight, paddingBottom: toolbarHeight }}>
-        {!isNative && (
-          <div className="dev-fallback" style={{ background: colors.card, borderColor: colors.border }}>
-            <div className="dev-fallback-icon">🌐</div>
-            <div className="dev-fallback-title" style={{ color: colors.foreground }}>
-              Run inside the Android app to browse
+        {isHome ? (
+          <HomePage />
+        ) : (
+          !isNative && (
+            <div className="dev-fallback" style={{ background: colors.card, borderColor: colors.border }}>
+              <div className="dev-fallback-icon">🌐</div>
+              <div className="dev-fallback-title" style={{ color: colors.foreground }}>
+                Run inside the Android app to browse
+              </div>
+              <div className="dev-fallback-body" style={{ color: colors.mutedForeground }}>
+                The embedded page renders through a native WebView (via
+                @capgo/capacitor-inappbrowser), which isn't available in this
+                browser preview. Build and run on a device/emulator to see{' '}
+                {currentUrl}.
+              </div>
             </div>
-            <div className="dev-fallback-body" style={{ color: colors.mutedForeground }}>
-              The embedded page renders through a native WebView (via
-              @capgo/capacitor-inappbrowser), which isn't available in this
-              browser preview. Build and run on a device/emulator to see{' '}
-              {currentUrl}.
-            </div>
-          </div>
+          )
         )}
       </div>
 
