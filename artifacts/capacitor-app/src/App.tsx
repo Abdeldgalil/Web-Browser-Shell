@@ -57,6 +57,7 @@ function BrowserHost() {
       if (!webviewIdRef.current) {
         const { id } = await InAppBrowser.openWebView({
           url: currentUrl,
+          toolbarType: 'blank',
           toBack: true,
           transparentBackground: true,
           width,
@@ -74,6 +75,7 @@ function BrowserHost() {
           await InAppBrowser.close();
           const { id } = await InAppBrowser.openWebView({
             url: currentUrl,
+            toolbarType: 'blank',
             toBack: true,
             transparentBackground: true,
             width,
@@ -171,6 +173,7 @@ function BrowserHost() {
 
   return (
     <div className="app-root">
+      <UrlBar />
 
       <div className="web-area" style={{ paddingTop: urlBarHeight, paddingBottom: toolbarHeight }}>
         {!isNative && (
