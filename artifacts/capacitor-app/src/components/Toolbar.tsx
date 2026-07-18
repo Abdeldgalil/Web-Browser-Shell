@@ -1,8 +1,9 @@
 import React from 'react';
+import { ChevronLeft, ChevronRight, RotateCw, X, Bookmark, Clock, Star } from 'lucide-react';
 import { useColors, useColorScheme } from '../hooks/useColors';
 import { useBrowser } from '../context/BrowserContext';
 
-export const TOOLBAR_CONTENT_HEIGHT = 44;
+export const TOOLBAR_CONTENT_HEIGHT = 50;
 export const TOOLBAR_TOP_PAD = 8;
 
 interface Props {
@@ -32,38 +33,44 @@ export default function Toolbar({ onOpenBookmarks, onOpenHistory }: Props) {
     <div
       className="toolbar"
       style={{
-        background: isDark ? 'rgba(28,28,30,0.85)' : 'rgba(242,242,247,0.85)',
+        background: isDark ? 'rgba(28,28,30,0.72)' : 'rgba(248,248,250,0.72)',
         borderTopColor: colors.border,
         paddingTop: TOOLBAR_TOP_PAD,
       }}
     >
       <div className="toolbar-row" style={{ height: TOOLBAR_CONTENT_HEIGHT }}>
-        <Btn icon="◀" onPress={goBack} disabled={!canGoBack} colors={colors} label="Back" />
-        <Btn icon="▶" onPress={goForward} disabled={!canGoForward} colors={colors} label="Forward" />
-        <Btn icon={isLoading ? '✕' : '⟳'} onPress={reload} colors={colors} label="Reload" />
-        <Btn
-          icon="🔖"
-          onPress={() => toggleBookmark(currentUrl, pageTitle)}
-          active={bookmarked}
-          colors={colors}
-          label="Bookmark"
-        />
-        <Btn icon="🕘" onPress={onOpenHistory} colors={colors} label="History" />
-        <Btn icon="⭐" onPress={onOpenBookmarks} colors={colors} label="Bookmarks" />
+        <Btn onPress={goBack} disabled={!canGoBack} colors={colors} label="Back">
+          <ChevronLeft size={24} strokeWidth={2.25} />
+        </Btn>
+        <Btn onPress={goForward} disabled={!canGoForward} colors={colors} label="Forward">
+          <ChevronRight size={24} strokeWidth={2.25} />
+        </Btn>
+        <Btn onPress={reload} colors={colors} label="Reload">
+          {isLoading ? <X size={20} strokeWidth={2.25} /> : <RotateCw size={19} strokeWidth={2.25} />}
+        </Btn>
+        <Btn onPress={() => toggleBookmark(currentUrl, pageTitle)} active={bookmarked} colors={colors} label="Bookmark">
+          <Bookmark size={20} strokeWidth={2.25} fill={bookmarked ? 'currentColor' : 'none'} />
+        </Btn>
+        <Btn onPress={onOpenHistory} colors={colors} label="History">
+          <Clock size={20} strokeWidth={2.25} />
+        </Btn>
+        <Btn onPress={onOpenBookmarks} colors={colors} label="Bookmarks">
+          <Star size={20} strokeWidth={2.25} />
+        </Btn>
       </div>
     </div>
   );
 }
 
 function Btn({
-  icon,
+  children,
   onPress,
   disabled,
   active,
   colors,
   label,
 }: {
-  icon: string;
+  children: React.ReactNode;
   onPress: () => void;
   disabled?: boolean;
   active?: boolean;
@@ -77,10 +84,11 @@ function Btn({
       disabled={disabled}
       aria-label={label}
       style={{
-        color: disabled ? colors.border : active ? colors.primary : colors.foreground,
+        color: disabled ? colors.mutedForeground : active ? colors.primary : colors.foreground,
+        opacity: disabled ? 0.35 : 1,
       }}
     >
-      {icon}
+      {children}
     </button>
   );
 }
