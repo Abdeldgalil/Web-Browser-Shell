@@ -6,8 +6,10 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
+import { Preferences } from '@capacitor/preferences';
 
-export const HOME_URL = 'https://www.google.com';
+// Sentinel value for the app's own home/start page (not a real URL).
+export const HOME_URL = 'app://home';
 
 export function normalizeUrl(input: string): string {
   const trimmed = input.trim();
@@ -19,8 +21,10 @@ export function normalizeUrl(input: string): string {
 }
 
 export function getDisplayUrl(url: string): string {
+  if (!url || url === HOME_URL) return '';
   try {
-    return new URL(url).hostname;
+    const parsed = new URL(url);
+    return parsed.hostname;
   } catch {
     return url;
   }
@@ -39,7 +43,10 @@ export interface Bookmark {
   title: string;
 }
 
-interface BrowserRef {
+// Populated by the embedded-browser controller in App.tsx once the native
+// InAppBrowser WebView is opened. Mirrors the old `webViewRef.current` API
+// (goBack/goForward/reload) from the react-native-webview version.
+export interface EmbeddedBrowserHandle {
   goBack: () => void;
   goForward: () => void;
   reload: () => void;
@@ -55,10 +62,11 @@ interface BrowserContextType {
   setCanGoForward: (v: boolean) => void;
   pageTitle: string;
   setPageTitle: (t: string) => void;
-  browserRef: React.MutableRefObject<BrowserRef | null>;
+  browserRef: React.MutableRefObject<EmbeddedBrowserHandle | null>;
   history: HistoryEntry[];
   bookmarks: Bookmark[];
   navigate: (url: string) => void;
+  goHome: () => void;
   addToHistory: (url: string, title: string) => void;
   toggleBookmark: (url: string, title: string) => void;
   isBookmarked: (url: string) => boolean;
@@ -75,25 +83,6 @@ const BrowserContext = createContext<BrowserContextType | null>(null);
 const HISTORY_KEY = 'browser_history';
 const BOOKMARKS_KEY = 'browser_bookmarks';
 
-function loadStorage<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveStorage(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
-}
-
-function uid() {
-  return Date.now().toString() + Math.random().toString(36).slice(2, 7);
-}
-
 export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [currentUrl, setCurrentUrl] = useState(HOME_URL);
   const [isLoading, setIsLoading] = useState(false);
@@ -102,33 +91,41 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [pageTitle, setPageTitle] = useState('');
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
-  const browserRef = useRef<BrowserRef | null>(null);
+  const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
 
   useEffect(() => {
-    setHistory(loadStorage<HistoryEntry[]>(HISTORY_KEY, []));
-    setBookmarks(loadStorage<Bookmark[]>(BOOKMARKS_KEY, []));
+    Preferences.get({ key: HISTORY_KEY }).then(({ value }) => {
+      if (value) setHistory(JSON.parse(value));
+    });
+    Preferences.get({ key: BOOKMARKS_KEY }).then(({ value }) => {
+      if (value) setBookmarks(JSON.parse(value));
+    });
   }, []);
 
   const navigate = useCallback((url: string) => {
     const normalized = normalizeUrl(url);
     setCurrentUrl(normalized);
-    setIsLoading(true);
     setCanGoBack(false);
     setCanGoForward(false);
   }, []);
 
+  const goHome = useCallback(() => {
+    setCurrentUrl(HOME_URL);
+    setPageTitle('');
+  }, []);
+
   const addToHistory = useCallback((url: string, title: string) => {
-    if (!url) return;
+    if (!url || url === HOME_URL) return;
     setHistory((prev) => {
       const entry: HistoryEntry = {
-        id: uid(),
+        id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
         url,
         title: title || getDisplayUrl(url),
         timestamp: Date.now(),
       };
       const filtered = prev.filter((h) => h.url !== url);
       const next = [entry, ...filtered].slice(0, 200);
-      saveStorage(HISTORY_KEY, next);
+      Preferences.set({ key: HISTORY_KEY, value: JSON.stringify(next) });
       return next;
     });
   }, []);
@@ -136,28 +133,38 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const toggleBookmark = useCallback((url: string, title: string) => {
     setBookmarks((prev) => {
       const exists = prev.find((b) => b.url === url);
-      const next = exists
-        ? prev.filter((b) => b.url !== url)
-        : [{ id: uid(), url, title: title || getDisplayUrl(url) }, ...prev];
-      saveStorage(BOOKMARKS_KEY, next);
+      let next: Bookmark[];
+      if (exists) {
+        next = prev.filter((b) => b.url !== url);
+      } else {
+        next = [
+          {
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+            url,
+            title: title || getDisplayUrl(url),
+          },
+          ...prev,
+        ];
+      }
+      Preferences.set({ key: BOOKMARKS_KEY, value: JSON.stringify(next) });
       return next;
     });
   }, []);
 
   const isBookmarked = useCallback(
     (url: string) => bookmarks.some((b) => b.url === url),
-    [bookmarks],
+    [bookmarks]
   );
 
   const clearHistory = useCallback(() => {
     setHistory([]);
-    localStorage.removeItem(HISTORY_KEY);
+    Preferences.remove({ key: HISTORY_KEY });
   }, []);
 
   const removeHistoryItem = useCallback((id: string) => {
     setHistory((prev) => {
       const next = prev.filter((h) => h.id !== id);
-      saveStorage(HISTORY_KEY, next);
+      Preferences.set({ key: HISTORY_KEY, value: JSON.stringify(next) });
       return next;
     });
   }, []);
@@ -165,7 +172,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const removeBookmark = useCallback((id: string) => {
     setBookmarks((prev) => {
       const next = prev.filter((b) => b.id !== id);
-      saveStorage(BOOKMARKS_KEY, next);
+      Preferences.set({ key: BOOKMARKS_KEY, value: JSON.stringify(next) });
       return next;
     });
   }, []);
@@ -190,6 +197,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         history,
         bookmarks,
         navigate,
+        goHome,
         addToHistory,
         toggleBookmark,
         isBookmarked,
