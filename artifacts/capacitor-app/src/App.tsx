@@ -25,7 +25,8 @@ function safeAreaBottom(): number {
  * webview (no toBack), so it can actually receive touch input. Dimensions
  * are passed in CSS pixels, matching window.innerWidth/innerHeight.
  * When currentUrl is the app's own HOME_URL sentinel, no native webview is
- * opened at all — our own <HomePage/> renders instead.
+ * opened at all, the UrlBar is hidden (HomePage has its own search), and
+ * our own <HomePage/> renders instead.
  */
 function BrowserHost() {
   const colors = useColors();
@@ -47,6 +48,7 @@ function BrowserHost() {
 
   const urlBarHeight = safeAreaTop() + URL_BAR_CONTENT_HEIGHT + URL_BAR_BOTTOM_PAD;
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
+  const topPad = isHome ? safeAreaTop() : urlBarHeight;
 
   // Open / reposition / close the embedded webview.
   useEffect(() => {
@@ -185,9 +187,9 @@ function BrowserHost() {
 
   return (
     <div className="app-root">
-      <UrlBar />
+      {!isHome && <UrlBar />}
 
-      <div className="web-area" style={{ paddingTop: urlBarHeight, paddingBottom: toolbarHeight }}>
+      <div className="web-area" style={{ paddingTop: topPad, paddingBottom: toolbarHeight }}>
         {isHome ? (
           <HomePage />
         ) : (
