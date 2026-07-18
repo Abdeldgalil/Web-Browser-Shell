@@ -170,8 +170,7 @@ function BrowserHost() {
   }, [isNative]);
 
   return (
-    <div className="app-root" style={{ background: colors.background }}>
-      <UrlBar />
+    <div className="app-root">
 
       <div className="web-area" style={{ paddingTop: urlBarHeight, paddingBottom: toolbarHeight }}>
         {!isNative && (
