@@ -1,114 +1,105 @@
-/* ── Reset ─────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: light dark;
+}
 
-html, body, #root {
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
   height: 100%;
-  width: 100%;
-  overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  margin: 0;
+  padding: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Fully transparent so the native embedded WebView (behind this layer)
+     shows through wherever our own UI doesn't paint over it. */
+  background: transparent;
 }
 
 button {
-  cursor: pointer;
+  font: inherit;
   border: none;
   background: none;
-  font: inherit;
-  padding: 0;
+  cursor: pointer;
 }
 
-/* ── App root ──────────────────────────────────────────── */
 .app-root {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100%;
   width: 100%;
-  position: relative;
   overflow: hidden;
 }
 
-/* ── Web area (content behind toolbars) ───────────────── */
-.web-area {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-/* ── Dev fallback card ─────────────────────────────────── */
-.dev-fallback {
-  max-width: 340px;
-  width: 90%;
-  border-radius: 16px;
-  border: 1px solid;
-  padding: 32px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-}
-.dev-fallback-icon { font-size: 48px; }
-.dev-fallback-title { font-size: 17px; font-weight: 600; }
-.dev-fallback-body  { font-size: 14px; line-height: 1.5; opacity: 0.75; }
-
-/* ── URL Bar ───────────────────────────────────────────── */
+/* ---------- UrlBar ---------- */
 .urlbar {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
-  padding-top: env(safe-area-inset-top, 0px);
+  padding: 0 14px;
+  padding-top: calc(var(--safe-top));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(0,0,0,0.08);
 }
-
 .urlbar-row {
   display: flex;
   align-items: center;
-  padding: 0 12px;
   gap: 8px;
+  padding-top: 8px;
 }
-
 .urlbar-pill {
   flex: 1;
   display: flex;
   align-items: center;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 0 12px;
-  gap: 6px;
-  overflow: hidden;
+  gap: 7px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: transform 0.1s ease;
 }
-
-.urlbar-lock { font-size: 14px; flex-shrink: 0; }
-
+.urlbar-pill:active {
+  transform: scale(0.985);
+}
+.urlbar-lock {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
 .urlbar-text {
   flex: 1;
   font-size: 15px;
+  text-align: center;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: center;
 }
-
 .urlbar-spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(128,128,128,0.3);
-  border-top-color: #0A84FF;
+  border: 2px solid rgba(128, 128, 128, 0.3);
+  border-top-color: #0a84ff;
   border-radius: 50%;
   flex-shrink: 0;
   animation: spin 0.7s linear infinite;
 }
-
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .urlbar-form {
-  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
 }
-
 .urlbar-input-container {
   flex: 1;
   display: flex;
@@ -116,141 +107,183 @@ button {
   border-radius: 12px;
   padding: 0 10px;
   gap: 6px;
-  overflow: hidden;
 }
-
-.urlbar-search-icon { font-size: 14px; flex-shrink: 0; opacity: 0.5; }
-
 .urlbar-input {
   flex: 1;
-  font-size: 15px;
-  background: transparent;
   border: none;
+  background: transparent;
   outline: none;
+  font-size: 15px;
   min-width: 0;
 }
-
-.urlbar-clear {
-  font-size: 13px;
-  opacity: 0.5;
+.urlbar-clear,
+.urlbar-cancel {
+  display: flex;
+  align-items: center;
+  padding: 4px;
   flex-shrink: 0;
-  padding: 2px 4px;
 }
-
 .urlbar-cancel {
   font-size: 15px;
   font-weight: 500;
-  flex-shrink: 0;
-  padding: 0 4px;
 }
 
-/* ── Toolbar ───────────────────────────────────────────── */
+/* ---------- Toolbar ---------- */
 .toolbar {
-  position: relative;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid;
+  padding-bottom: calc(var(--safe-bottom));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid;
 }
-
 .toolbar-row {
   display: flex;
-  align-items: center;
   justify-content: space-around;
-  padding: 0 8px;
+  align-items: center;
+  padding: 0 4px;
 }
-
 .toolbar-btn {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
-  font-size: 20px;
-  transition: opacity 0.15s;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+.toolbar-btn:active:not(:disabled) {
+  transform: scale(0.88);
+  opacity: 0.6;
+}
+.toolbar-btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
-.toolbar-btn:disabled { opacity: 0.3; pointer-events: none; }
+/* ---------- Web area (native webview shows through here) ---------- */
+.web-area {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+.dev-fallback {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  gap: 10px;
+}
+.dev-fallback-icon {
+  font-size: 40px;
+}
+.dev-fallback-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+.dev-fallback-body {
+  font-size: 14px;
+  max-width: 320px;
+  line-height: 1.4;
+}
 
-/* ── Modals ────────────────────────────────────────────── */
+/* ---------- Modals (Bookmarks / History) ---------- */
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: rgba(0,0,0,0.45);
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: flex-end;
 }
-
 .modal-sheet {
   width: 100%;
-  max-height: 75vh;
-  border-radius: 20px 20px 0 0;
+  max-height: 82%;
+  min-height: 300px;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  padding-bottom: calc(var(--safe-bottom) + 12px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-
 .modal-handle {
   width: 36px;
   height: 4px;
   border-radius: 2px;
-  margin: 10px auto 8px;
+  margin: 10px auto 4px;
 }
-
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px 12px;
+  padding: 14px 16px;
   border-bottom: 1px solid;
 }
-
-.modal-title { font-size: 17px; font-weight: 600; }
-
-.modal-header-actions { display: flex; align-items: center; gap: 12px; }
-
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.modal-clear {
+  font-size: 15px;
+  font-weight: 500;
+}
 .modal-close {
   width: 28px;
   height: 28px;
   border-radius: 14px;
-  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 13px;
 }
-
-.modal-clear { font-size: 15px; font-weight: 500; }
-
 .modal-empty {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 40px 24px;
+  padding: 56px 32px;
+  gap: 10px;
+  flex: 1;
 }
-
-.modal-empty-icon { font-size: 40px; }
-.modal-empty-title { font-size: 17px; font-weight: 600; }
-.modal-empty-subtitle { font-size: 14px; text-align: center; line-height: 1.4; }
-
-.modal-list { flex: 1; overflow-y: auto; }
-
+.modal-empty-icon {
+  font-size: 44px;
+  opacity: 0.4;
+}
+.modal-empty-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+.modal-empty-subtitle {
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.4;
+}
+.modal-list {
+  overflow-y: auto;
+  flex: 1;
+}
 .modal-row {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 13px 16px;
   gap: 12px;
   border-bottom: 1px solid;
   cursor: pointer;
 }
-
-.modal-row:active { opacity: 0.7; }
-
+.modal-row:active {
+  opacity: 0.7;
+}
 .modal-favicon {
   width: 36px;
   height: 36px;
@@ -261,9 +294,10 @@ button {
   font-size: 18px;
   flex-shrink: 0;
 }
-
-.modal-info { flex: 1; min-width: 0; }
-
+.modal-info {
+  flex: 1;
+  min-width: 0;
+}
 .modal-item-title {
   font-size: 15px;
   font-weight: 500;
@@ -271,7 +305,6 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .modal-item-url,
 .modal-item-meta {
   font-size: 12px;
@@ -280,15 +313,9 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .modal-remove {
   font-size: 18px;
   padding: 4px;
   flex-shrink: 0;
   opacity: 0.6;
-}
-
-/* ── Animation ─────────────────────────────────────────── */
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
