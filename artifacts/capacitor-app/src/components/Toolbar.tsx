@@ -1,34 +1,23 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight, RotateCw, X, Bookmark, Clock, Star, MoreVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCw, X, Home, MoreVertical } from 'lucide-react';
 import { useColors, useColorScheme } from '../hooks/useColors';
-import { useBrowser } from '../context/BrowserContext';
+import { useBrowser, HOME_URL } from '../context/BrowserContext';
 
 export const TOOLBAR_CONTENT_HEIGHT = 50;
 export const TOOLBAR_TOP_PAD = 8;
 
 interface Props {
-  onOpenBookmarks: () => void;
-  onOpenHistory: () => void;
+  onOpenTabs: () => void;
   onOpenMore: () => void;
 }
 
-export default function Toolbar({ onOpenBookmarks, onOpenHistory, onOpenMore }: Props) {
+export default function Toolbar({ onOpenTabs, onOpenMore }: Props) {
   const colors = useColors();
   const isDark = useColorScheme() === 'dark';
-  const {
-    canGoBack,
-    canGoForward,
-    isLoading,
-    goBack,
-    goForward,
-    reload,
-    currentUrl,
-    pageTitle,
-    toggleBookmark,
-    isBookmarked,
-  } = useBrowser();
+  const { canGoBack, canGoForward, isLoading, goBack, goForward, reload, goHome, currentUrl, tabs } =
+    useBrowser();
 
-  const bookmarked = isBookmarked(currentUrl);
+  const isHome = currentUrl === HOME_URL;
 
   return (
     <div
@@ -46,17 +35,14 @@ export default function Toolbar({ onOpenBookmarks, onOpenHistory, onOpenMore }: 
         <Btn onPress={goForward} disabled={!canGoForward} colors={colors} label="Forward">
           <ChevronRight size={22} strokeWidth={2.25} />
         </Btn>
-        <Btn onPress={reload} colors={colors} label="Reload">
+        <Btn onPress={goHome} active={isHome} colors={colors} label="Home">
+          <Home size={19} strokeWidth={2.25} />
+        </Btn>
+        <Btn onPress={reload} disabled={isHome} colors={colors} label="Reload">
           {isLoading ? <X size={18} strokeWidth={2.25} /> : <RotateCw size={17} strokeWidth={2.25} />}
         </Btn>
-        <Btn onPress={() => toggleBookmark(currentUrl, pageTitle)} active={bookmarked} colors={colors} label="Bookmark">
-          <Bookmark size={18} strokeWidth={2.25} fill={bookmarked ? 'currentColor' : 'none'} />
-        </Btn>
-        <Btn onPress={onOpenHistory} colors={colors} label="History">
-          <Clock size={18} strokeWidth={2.25} />
-        </Btn>
-        <Btn onPress={onOpenBookmarks} colors={colors} label="Bookmarks">
-          <Star size={18} strokeWidth={2.25} />
+        <Btn onPress={onOpenTabs} colors={colors} label="Tabs">
+          <span className="toolbar-tabs-icon">{tabs.length}</span>
         </Btn>
         <Btn onPress={onOpenMore} colors={colors} label="More">
           <MoreVertical size={20} strokeWidth={2.25} />
