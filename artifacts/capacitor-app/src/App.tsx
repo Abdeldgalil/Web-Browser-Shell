@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
 import { InAppBrowser } from '@capgo/capacitor-inappbrowser';
+import { X } from 'lucide-react';
 import { useColors } from './hooks/useColors';
 import { BrowserProvider, useBrowser, HOME_URL } from './context/BrowserContext';
 import UrlBar, { URL_BAR_CONTENT_HEIGHT, URL_BAR_BOTTOM_PAD } from './components/UrlBar';
 import Toolbar, { TOOLBAR_CONTENT_HEIGHT, TOOLBAR_TOP_PAD } from './components/Toolbar';
 import BookmarksModal from './components/BookmarksModal';
 import HistoryModal from './components/HistoryModal';
+import MoreMenu from './components/MoreMenu';
 import HomePage from './components/HomePage';
 
 function safeAreaTop(): number {
@@ -18,20 +21,19 @@ function safeAreaBottom(): number {
   return parseInt(v || '0', 10) || 0;
 }
 
-/**
- * Manages the embedded native WebView (via @capgo/capacitor-inappbrowser).
- * The plugin renders a real native WebView sized/positioned in the area
- * between the url bar and the toolbar, in front of the Capacitor host
- * webview (no toBack), so it can actually receive touch input. Dimensions
- * are passed in CSS pixels, matching window.innerWidth/innerHeight.
- * When currentUrl is the app's own HOME_URL sentinel, no native webview is
- * opened at all, the UrlBar is hidden (HomePage has its own search), and
- * our own <HomePage/> renders instead.
- */
+const DESKTOP_VIEWPORT_SCRIPT = `
+(function() {
+  var m = document.querySelector('meta[name="viewport"]');
+  if (!m) { m = document.createElement('meta'); m.name = 'viewport'; document.head.appendChild(m); }
+  m.setAttribute('content', 'width=1280');
+})();
+`;
+
 function BrowserHost() {
   const colors = useColors();
   const {
     currentUrl,
+    pageTitle,
     setIsLoading,
     setCanGoBack,
     setCanGoForward,
@@ -42,6 +44,10 @@ function BrowserHost() {
 
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [showFindBar, setShowFindBar] = useState(false);
+  const [findTerm, setFindTerm] = useState('');
+  const [desktopMode, setDesktopMode] = useState(false);
   const webviewIdRef = useRef<string | null>(null);
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
@@ -58,7 +64,6 @@ function BrowserHost() {
 
     async function openOrUpdate() {
       if (isHome) {
-        // On the home page there's nothing to browse — close any open webview.
         if (webviewIdRef.current) {
           await InAppBrowser.close().catch(() => {});
           webviewIdRef.current = null;
@@ -87,7 +92,6 @@ function BrowserHost() {
         try {
           await (InAppBrowser as any).setUrl({ id: webviewIdRef.current, url: currentUrl });
         } catch {
-          // Fallback: some plugin versions don't expose setUrl — recreate the view.
           await InAppBrowser.close();
           const { id } = await InAppBrowser.openWebView({
             url: currentUrl,
@@ -126,33 +130,31 @@ function BrowserHost() {
     return () => window.removeEventListener('resize', resize);
   }, [isNative, isHome, urlBarHeight, toolbarHeight]);
 
-  // Wire the goBack/goForward/reload controls used by the Toolbar.
+  // Wire the goBack/goForward/reload/findInPage/toggleDesktopSite controls.
   useEffect(() => {
     browserRef.current = {
       goBack: () => {
         if (!webviewIdRef.current) return;
-        InAppBrowser.executeScript({
-          id: webviewIdRef.current,
-          code: 'history.back();',
-        } as any).catch(() => {});
+        InAppBrowser.executeScript({ id: webviewIdRef.current, code: 'history.back();' } as any).catch(() => {});
       },
       goForward: () => {
         if (!webviewIdRef.current) return;
-        InAppBrowser.executeScript({
-          id: webviewIdRef.current,
-          code: 'history.forward();',
-        } as any).catch(() => {});
+        InAppBrowser.executeScript({ id: webviewIdRef.current, code: 'history.forward();' } as any).catch(() => {});
       },
       reload: () => {
         if (!webviewIdRef.current) return;
-        InAppBrowser.executeScript({
-          id: webviewIdRef.current,
-          code: 'location.reload();',
-        } as any).catch(() => {});
+        InAppBrowser.executeScript({ id: webviewIdRef.current, code: 'location.reload();' } as any).catch(() => {});
+      },
+      findInPage: (term: string) => {
+        if (!webviewIdRef.current || !term) return;
+        const code = `try { window.find(${JSON.stringify(term)}, false, false, true); } catch (e) {}`;
+        InAppBrowser.executeScript({ id: webviewIdRef.current, code } as any).catch(() => {});
+      },
+      toggleDesktopSite: () => {
+        if (!webviewIdRef.current) return;
+        InAppBrowser.executeScript({ id: webviewIdRef.current, code: DESKTOP_VIEWPORT_SCRIPT } as any).catch(() => {});
       },
     };
-    // Back/forward availability isn't reported by this plugin's public API,
-    // so both controls stay enabled and simply no-op at the ends of history.
     setCanGoBack(true);
     setCanGoForward(true);
   }, [browserRef, setCanGoBack, setCanGoForward]);
@@ -185,9 +187,51 @@ function BrowserHost() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNative]);
 
+  const handleShare = async () => {
+    try {
+      await Share.share({ title: pageTitle || undefined, url: currentUrl });
+    } catch {
+      // user cancelled or share unavailable — ignore
+    }
+  };
+
+  const handleToggleDesktop = () => {
+    setDesktopMode((v) => !v);
+    browserRef.current?.toggleDesktopSite();
+  };
+
+  const submitFind = (e: React.FormEvent) => {
+    e.preventDefault();
+    browserRef.current?.findInPage(findTerm);
+  };
+
   return (
     <div className="app-root">
       {!isHome && <UrlBar />}
+
+      {showFindBar && !isHome && (
+        <div className="findbar" style={{ top: urlBarHeight, background: colors.card, borderColor: colors.border }}>
+          <form onSubmit={submitFind} className="findbar-form">
+            <input
+              className="findbar-input"
+              style={{ color: colors.foreground }}
+              autoFocus
+              value={findTerm}
+              onChange={(e) => setFindTerm(e.target.value)}
+              placeholder="Find in page"
+            />
+          </form>
+          <button
+            className="findbar-close"
+            onClick={() => {
+              setShowFindBar(false);
+              setFindTerm('');
+            }}
+          >
+            <X size={18} strokeWidth={2.25} color={colors.mutedForeground} />
+          </button>
+        </div>
+      )}
 
       <div className="web-area" style={{ paddingTop: topPad, paddingBottom: toolbarHeight }}>
         {isHome ? (
@@ -210,10 +254,23 @@ function BrowserHost() {
         )}
       </div>
 
-      <Toolbar onOpenBookmarks={() => setShowBookmarks(true)} onOpenHistory={() => setShowHistory(true)} />
+      <Toolbar
+        onOpenBookmarks={() => setShowBookmarks(true)}
+        onOpenHistory={() => setShowHistory(true)}
+        onOpenMore={() => setShowMore(true)}
+      />
 
       <BookmarksModal visible={showBookmarks} onClose={() => setShowBookmarks(false)} />
       <HistoryModal visible={showHistory} onClose={() => setShowHistory(false)} />
+      <MoreMenu
+        visible={showMore}
+        onClose={() => setShowMore(false)}
+        onShare={handleShare}
+        onFindInPage={() => setShowFindBar(true)}
+        onToggleDesktop={handleToggleDesktop}
+        desktopMode={desktopMode}
+        disabled={isHome}
+      />
     </div>
   );
 }
