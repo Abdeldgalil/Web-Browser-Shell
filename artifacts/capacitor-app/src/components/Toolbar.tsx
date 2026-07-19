@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight, RotateCw, X, Bookmark, Clock, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCw, X, Bookmark, Clock, Star, MoreVertical } from 'lucide-react';
 import { useColors, useColorScheme } from '../hooks/useColors';
 import { useBrowser } from '../context/BrowserContext';
 
@@ -9,9 +9,10 @@ export const TOOLBAR_TOP_PAD = 8;
 interface Props {
   onOpenBookmarks: () => void;
   onOpenHistory: () => void;
+  onOpenMore: () => void;
 }
 
-export default function Toolbar({ onOpenBookmarks, onOpenHistory }: Props) {
+export default function Toolbar({ onOpenBookmarks, onOpenHistory, onOpenMore }: Props) {
   const colors = useColors();
   const isDark = useColorScheme() === 'dark';
   const {
@@ -40,22 +41,25 @@ export default function Toolbar({ onOpenBookmarks, onOpenHistory }: Props) {
     >
       <div className="toolbar-row" style={{ height: TOOLBAR_CONTENT_HEIGHT }}>
         <Btn onPress={goBack} disabled={!canGoBack} colors={colors} label="Back">
-          <ChevronLeft size={24} strokeWidth={2.25} />
+          <ChevronLeft size={22} strokeWidth={2.25} />
         </Btn>
         <Btn onPress={goForward} disabled={!canGoForward} colors={colors} label="Forward">
-          <ChevronRight size={24} strokeWidth={2.25} />
+          <ChevronRight size={22} strokeWidth={2.25} />
         </Btn>
         <Btn onPress={reload} colors={colors} label="Reload">
-          {isLoading ? <X size={20} strokeWidth={2.25} /> : <RotateCw size={19} strokeWidth={2.25} />}
+          {isLoading ? <X size={18} strokeWidth={2.25} /> : <RotateCw size={17} strokeWidth={2.25} />}
         </Btn>
         <Btn onPress={() => toggleBookmark(currentUrl, pageTitle)} active={bookmarked} colors={colors} label="Bookmark">
-          <Bookmark size={20} strokeWidth={2.25} fill={bookmarked ? 'currentColor' : 'none'} />
+          <Bookmark size={18} strokeWidth={2.25} fill={bookmarked ? 'currentColor' : 'none'} />
         </Btn>
         <Btn onPress={onOpenHistory} colors={colors} label="History">
-          <Clock size={20} strokeWidth={2.25} />
+          <Clock size={18} strokeWidth={2.25} />
         </Btn>
         <Btn onPress={onOpenBookmarks} colors={colors} label="Bookmarks">
-          <Star size={20} strokeWidth={2.25} />
+          <Star size={18} strokeWidth={2.25} />
+        </Btn>
+        <Btn onPress={onOpenMore} colors={colors} label="More">
+          <MoreVertical size={20} strokeWidth={2.25} />
         </Btn>
       </div>
     </div>
