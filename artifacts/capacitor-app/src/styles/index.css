@@ -452,3 +452,53 @@ button {
   font-size: 13px;
   padding: 8px 2px;
 }
+/* ---------- More menu ---------- */
+.more-menu-sheet {
+  max-height: none;
+  min-height: 0;
+}
+.more-menu-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px 16px;
+}
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 12px;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+}
+.more-menu-item:active {
+  opacity: 0.6;
+}
+
+/* ---------- Find in page bar ---------- */
+.findbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid;
+}
+.findbar-form {
+  flex: 1;
+}
+.findbar-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 15px;
+}
+.findbar-close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
