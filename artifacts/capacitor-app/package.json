@@ -15,6 +15,7 @@
     "@capacitor/android": "^8.4.2",
     "@capacitor/core": "^8.4.2",
     "@capacitor/preferences": "^8.0.1",
+    "@capacitor/share": "^8.0.1",
     "@capgo/capacitor-inappbrowser": "^8.12.2",
     "lucide-react": "^0.469.0",
     "react": "^19.1.0",
