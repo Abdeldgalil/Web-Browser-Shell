@@ -10,6 +10,7 @@ import Toolbar, { TOOLBAR_CONTENT_HEIGHT, TOOLBAR_TOP_PAD } from './components/T
 import BookmarksModal from './components/BookmarksModal';
 import HistoryModal from './components/HistoryModal';
 import MoreMenu from './components/MoreMenu';
+import TabSwitcher from './components/TabSwitcher';
 import HomePage from './components/HomePage';
 
 function safeAreaTop(): number {
@@ -33,7 +34,9 @@ function BrowserHost() {
   const colors = useColors();
   const {
     currentUrl,
+    activeTabId,
     pageTitle,
+    navigate,
     setIsLoading,
     setCanGoBack,
     setCanGoForward,
@@ -45,6 +48,7 @@ function BrowserHost() {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showTabs, setShowTabs] = useState(false);
   const [showFindBar, setShowFindBar] = useState(false);
   const [findTerm, setFindTerm] = useState('');
   const [desktopMode, setDesktopMode] = useState(false);
@@ -56,7 +60,7 @@ function BrowserHost() {
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
   const topPad = isHome ? safeAreaTop() : urlBarHeight;
 
-  // Open / reposition / close the embedded webview.
+  // Open / reposition / close the embedded webview. Re-runs on tab switch too.
   useEffect(() => {
     if (!isNative) return;
 
@@ -111,9 +115,8 @@ function BrowserHost() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUrl, isNative, isHome]);
+  }, [currentUrl, isNative, isHome, activeTabId]);
 
-  // Keep the native webview's size/position in sync with the toolbar/url bar.
   useEffect(() => {
     if (!isNative || isHome) return;
     const resize = () => {
@@ -130,7 +133,6 @@ function BrowserHost() {
     return () => window.removeEventListener('resize', resize);
   }, [isNative, isHome, urlBarHeight, toolbarHeight]);
 
-  // Wire the goBack/goForward/reload/findInPage/toggleDesktopSite controls.
   useEffect(() => {
     browserRef.current = {
       goBack: () => {
@@ -159,7 +161,6 @@ function BrowserHost() {
     setCanGoForward(true);
   }, [browserRef, setCanGoBack, setCanGoForward]);
 
-  // Listen for in-page navigation (link taps, redirects, form submits).
   useEffect(() => {
     if (!isNative) return;
     const subs = [
@@ -191,13 +192,18 @@ function BrowserHost() {
     try {
       await Share.share({ title: pageTitle || undefined, url: currentUrl });
     } catch {
-      // user cancelled or share unavailable — ignore
+      // user cancelled or share unavailable
     }
   };
 
   const handleToggleDesktop = () => {
     setDesktopMode((v) => !v);
     browserRef.current?.toggleDesktopSite();
+  };
+
+  const handleTranslate = () => {
+    if (isHome) return;
+    navigate(`https://translate.google.com/translate?sl=auto&tl=ar&u=${encodeURIComponent(currentUrl)}`);
   };
 
   const submitFind = (e: React.FormEvent) => {
@@ -254,20 +260,20 @@ function BrowserHost() {
         )}
       </div>
 
-      <Toolbar
-        onOpenBookmarks={() => setShowBookmarks(true)}
-        onOpenHistory={() => setShowHistory(true)}
-        onOpenMore={() => setShowMore(true)}
-      />
+      <Toolbar onOpenTabs={() => setShowTabs(true)} onOpenMore={() => setShowMore(true)} />
 
       <BookmarksModal visible={showBookmarks} onClose={() => setShowBookmarks(false)} />
       <HistoryModal visible={showHistory} onClose={() => setShowHistory(false)} />
+      <TabSwitcher visible={showTabs} onClose={() => setShowTabs(false)} />
       <MoreMenu
         visible={showMore}
         onClose={() => setShowMore(false)}
         onShare={handleShare}
         onFindInPage={() => setShowFindBar(true)}
         onToggleDesktop={handleToggleDesktop}
+        onTranslate={handleTranslate}
+        onOpenBookmarks={() => setShowBookmarks(true)}
+        onOpenHistory={() => setShowHistory(true)}
         desktopMode={desktopMode}
         disabled={isHome}
       />
