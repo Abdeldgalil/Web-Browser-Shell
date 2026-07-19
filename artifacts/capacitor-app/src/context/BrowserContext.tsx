@@ -8,7 +8,6 @@ import React, {
 } from 'react';
 import { Preferences } from '@capacitor/preferences';
 
-// Sentinel value for the app's own home/start page (not a real URL).
 export const HOME_URL = 'app://home';
 
 export function normalizeUrl(input: string): string {
@@ -43,6 +42,12 @@ export interface Bookmark {
   title: string;
 }
 
+export interface Tab {
+  id: string;
+  url: string;
+  title: string;
+}
+
 // Populated by the embedded-browser controller in App.tsx once the native
 // InAppBrowser WebView is opened.
 export interface EmbeddedBrowserHandle {
@@ -53,21 +58,34 @@ export interface EmbeddedBrowserHandle {
   toggleDesktopSite: () => void;
 }
 
+function makeId() {
+  return Date.now().toString() + Math.random().toString(36).substring(2, 7);
+}
+
+function makeTab(url: string = HOME_URL): Tab {
+  return { id: makeId(), url, title: '' };
+}
+
 interface BrowserContextType {
+  tabs: Tab[];
+  activeTabId: string;
   currentUrl: string;
+  pageTitle: string;
+  setPageTitle: (t: string) => void;
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   canGoBack: boolean;
   setCanGoBack: (v: boolean) => void;
   canGoForward: boolean;
   setCanGoForward: (v: boolean) => void;
-  pageTitle: string;
-  setPageTitle: (t: string) => void;
   browserRef: React.MutableRefObject<EmbeddedBrowserHandle | null>;
   history: HistoryEntry[];
   bookmarks: Bookmark[];
   navigate: (url: string) => void;
   goHome: () => void;
+  newTab: (url?: string) => void;
+  closeTab: (id: string) => void;
+  switchTab: (id: string) => void;
   addToHistory: (url: string, title: string) => void;
   toggleBookmark: (url: string, title: string) => void;
   isBookmarked: (url: string) => boolean;
@@ -87,14 +105,18 @@ const HISTORY_KEY = 'browser_history';
 const BOOKMARKS_KEY = 'browser_bookmarks';
 
 export function BrowserProvider({ children }: { children: React.ReactNode }) {
-  const [currentUrl, setCurrentUrl] = useState(HOME_URL);
+  const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
+  const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
   const [isLoading, setIsLoading] = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
-  const [pageTitle, setPageTitle] = useState('');
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
+
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
+  const currentUrl = activeTab?.url ?? HOME_URL;
+  const pageTitle = activeTab?.title ?? '';
 
   useEffect(() => {
     Preferences.get({ key: HISTORY_KEY }).then(({ value }) => {
@@ -105,23 +127,70 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const navigate = useCallback((url: string) => {
-    const normalized = normalizeUrl(url);
-    setCurrentUrl(normalized);
-    setCanGoBack(false);
-    setCanGoForward(false);
-  }, []);
+  const updateActiveTab = useCallback(
+    (patch: Partial<Tab>) => {
+      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, ...patch } : t)));
+    },
+    [activeTabId]
+  );
+
+  const navigate = useCallback(
+    (url: string) => {
+      const normalized = normalizeUrl(url);
+      updateActiveTab({ url: normalized });
+      setCanGoBack(false);
+      setCanGoForward(false);
+    },
+    [updateActiveTab]
+  );
 
   const goHome = useCallback(() => {
-    setCurrentUrl(HOME_URL);
-    setPageTitle('');
+    updateActiveTab({ url: HOME_URL, title: '' });
+  }, [updateActiveTab]);
+
+  const setPageTitle = useCallback(
+    (t: string) => {
+      updateActiveTab({ title: t });
+    },
+    [updateActiveTab]
+  );
+
+  const newTab = useCallback((url: string = HOME_URL) => {
+    const tab = makeTab(url);
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(tab.id);
+  }, []);
+
+  const closeTab = useCallback(
+    (id: string) => {
+      setTabs((prev) => {
+        const idx = prev.findIndex((t) => t.id === id);
+        if (idx === -1) return prev;
+        const next = prev.filter((t) => t.id !== id);
+        if (next.length === 0) {
+          const fresh = makeTab();
+          setActiveTabId(fresh.id);
+          return [fresh];
+        }
+        if (id === activeTabId) {
+          const newActive = next[Math.max(0, idx - 1)];
+          setActiveTabId(newActive.id);
+        }
+        return next;
+      });
+    },
+    [activeTabId]
+  );
+
+  const switchTab = useCallback((id: string) => {
+    setActiveTabId(id);
   }, []);
 
   const addToHistory = useCallback((url: string, title: string) => {
     if (!url || url === HOME_URL) return;
     setHistory((prev) => {
       const entry: HistoryEntry = {
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+        id: makeId(),
         url,
         title: title || getDisplayUrl(url),
         timestamp: Date.now(),
@@ -140,14 +209,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
       if (exists) {
         next = prev.filter((b) => b.url !== url);
       } else {
-        next = [
-          {
-            id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
-            url,
-            title: title || getDisplayUrl(url),
-          },
-          ...prev,
-        ];
+        next = [{ id: makeId(), url, title: title || getDisplayUrl(url) }, ...prev];
       }
       Preferences.set({ key: BOOKMARKS_KEY, value: JSON.stringify(next) });
       return next;
@@ -189,20 +251,25 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   return (
     <BrowserContext.Provider
       value={{
+        tabs,
+        activeTabId,
         currentUrl,
+        pageTitle,
+        setPageTitle,
         isLoading,
         setIsLoading,
         canGoBack,
         setCanGoBack,
         canGoForward,
         setCanGoForward,
-        pageTitle,
-        setPageTitle,
         browserRef,
         history,
         bookmarks,
         navigate,
         goHome,
+        newTab,
+        closeTab,
+        switchTab,
         addToHistory,
         toggleBookmark,
         isBookmarked,
