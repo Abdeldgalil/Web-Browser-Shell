@@ -44,12 +44,13 @@ export interface Bookmark {
 }
 
 // Populated by the embedded-browser controller in App.tsx once the native
-// InAppBrowser WebView is opened. Mirrors the old `webViewRef.current` API
-// (goBack/goForward/reload) from the react-native-webview version.
+// InAppBrowser WebView is opened.
 export interface EmbeddedBrowserHandle {
   goBack: () => void;
   goForward: () => void;
   reload: () => void;
+  findInPage: (term: string) => void;
+  toggleDesktopSite: () => void;
 }
 
 interface BrowserContextType {
@@ -76,6 +77,8 @@ interface BrowserContextType {
   goBack: () => void;
   goForward: () => void;
   reload: () => void;
+  findInPage: (term: string) => void;
+  toggleDesktopSite: () => void;
 }
 
 const BrowserContext = createContext<BrowserContextType | null>(null);
@@ -180,6 +183,8 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const goBack = useCallback(() => browserRef.current?.goBack(), []);
   const goForward = useCallback(() => browserRef.current?.goForward(), []);
   const reload = useCallback(() => browserRef.current?.reload(), []);
+  const findInPage = useCallback((term: string) => browserRef.current?.findInPage(term), []);
+  const toggleDesktopSite = useCallback(() => browserRef.current?.toggleDesktopSite(), []);
 
   return (
     <BrowserContext.Provider
@@ -207,6 +212,8 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         goBack,
         goForward,
         reload,
+        findInPage,
+        toggleDesktopSite,
       }}
     >
       {children}
