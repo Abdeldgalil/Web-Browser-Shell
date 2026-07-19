@@ -1,6 +1,7 @@
 import React from 'react';
-import { Share2, Search, Monitor, Check } from 'lucide-react';
+import { Share2, Search, Monitor, Check, Bookmark, Star, Clock, Languages } from 'lucide-react';
 import { useColors } from '../hooks/useColors';
+import { useBrowser } from '../context/BrowserContext';
 
 interface Props {
   visible: boolean;
@@ -8,6 +9,9 @@ interface Props {
   onShare: () => void;
   onFindInPage: () => void;
   onToggleDesktop: () => void;
+  onTranslate: () => void;
+  onOpenBookmarks: () => void;
+  onOpenHistory: () => void;
   desktopMode: boolean;
   disabled: boolean;
 }
@@ -18,11 +22,17 @@ export default function MoreMenu({
   onShare,
   onFindInPage,
   onToggleDesktop,
+  onTranslate,
+  onOpenBookmarks,
+  onOpenHistory,
   desktopMode,
   disabled,
 }: Props) {
   const colors = useColors();
+  const { currentUrl, pageTitle, toggleBookmark, isBookmarked } = useBrowser();
   if (!visible) return null;
+
+  const bookmarked = isBookmarked(currentUrl);
 
   const run = (fn: () => void) => {
     fn();
@@ -42,6 +52,33 @@ export default function MoreMenu({
             className="more-menu-item"
             style={{ opacity: disabled ? 0.4 : 1 }}
             disabled={disabled}
+            onClick={() => run(() => toggleBookmark(currentUrl, pageTitle))}
+          >
+            <Bookmark
+              size={20}
+              strokeWidth={2}
+              color={colors.foreground}
+              fill={bookmarked ? colors.foreground : 'none'}
+            />
+            <span style={{ color: colors.foreground }}>{bookmarked ? 'Remove Bookmark' : 'Add Bookmark'}</span>
+          </button>
+
+          <button className="more-menu-item" onClick={() => run(onOpenBookmarks)}>
+            <Star size={20} strokeWidth={2} color={colors.foreground} />
+            <span style={{ color: colors.foreground }}>View Bookmarks</span>
+          </button>
+
+          <button className="more-menu-item" onClick={() => run(onOpenHistory)}>
+            <Clock size={20} strokeWidth={2} color={colors.foreground} />
+            <span style={{ color: colors.foreground }}>View History</span>
+          </button>
+
+          <div className="more-menu-divider" style={{ background: colors.border }} />
+
+          <button
+            className="more-menu-item"
+            style={{ opacity: disabled ? 0.4 : 1 }}
+            disabled={disabled}
             onClick={() => run(onShare)}
           >
             <Share2 size={20} strokeWidth={2} color={colors.foreground} />
@@ -56,6 +93,16 @@ export default function MoreMenu({
           >
             <Search size={20} strokeWidth={2} color={colors.foreground} />
             <span style={{ color: colors.foreground }}>Find in Page</span>
+          </button>
+
+          <button
+            className="more-menu-item"
+            style={{ opacity: disabled ? 0.4 : 1 }}
+            disabled={disabled}
+            onClick={() => run(onTranslate)}
+          >
+            <Languages size={20} strokeWidth={2} color={colors.foreground} />
+            <span style={{ color: colors.foreground }}>Translate Page</span>
           </button>
 
           <button
