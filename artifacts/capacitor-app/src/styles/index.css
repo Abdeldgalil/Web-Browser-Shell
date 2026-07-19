@@ -319,186 +319,22 @@ button {
   flex-shrink: 0;
   opacity: 0.6;
 }
+
 /* ---------- Home page ---------- */
 .home-page {
+  position: relative;
   height: 100%;
-  overflow-y: auto;
-  padding: 24px 20px 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 26px;
-}
-.home-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding-top: 12px;
-}
-.home-logo {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-}
-.home-title {
-  font-size: 18px;
-  font-weight: 700;
-}
-.home-search-form {
-  width: 100%;
-  max-width: 380px;
-}
-.home-search-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 14px;
-  padding: 12px 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-.home-search-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 15px;
-  min-width: 0;
-}
-
-.home-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.home-section-title {
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 0 2px;
-}
-
-.home-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-.home-shortcut {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 4px;
-}
-.home-shortcut:active {
-  opacity: 0.6;
-}
-.home-shortcut-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-}
-.home-shortcut-label {
-  font-size: 11px;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
-
-.home-news-list {
-  display: flex;
-  flex-direction: column;
-}
-.home-news-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 2px;
-  border-bottom: 1px solid;
-  text-align: left;
-}
-.home-news-item:active {
-  opacity: 0.6;
-}
-.home-news-thumb {
-  width: 60px;
-  height: 60px;
-  border-radius: 10px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-.home-news-thumb-fallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.home-news-title {
-  font-size: 14px;
-  line-height: 1.4;
-  flex: 1;
-}
-.home-news-error {
-  font-size: 13px;
-  padding: 8px 2px;
-}
-/* ---------- More menu ---------- */
-.more-menu-sheet {
-  max-height: none;
-  min-height: 0;
-}
-.more-menu-list {
-  display: flex;
-  flex-direction: column;
-  padding: 4px 8px 16px;
-}
-.more-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 12px;
-  font-size: 15px;
-  font-weight: 500;
-  text-align: left;
-}
-.more-menu-item:active {
-  opacity: 0.6;
-}
-
-/* ---------- Find in page bar ---------- */
-.findbar {
+.home-bg-image {
   position: absolute;
-  left: 0;
-  right: 0;
-  z-index: 150;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid;
-}
-.findbar-form {
-  flex: 1;
-}
-.findbar-input {
+  inset: 0;
   width: 100%;
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 15px;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.6s ease;
 }
-.findbar-close {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-}
+.home-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradie
