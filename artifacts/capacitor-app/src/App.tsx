@@ -34,10 +34,31 @@ const DESKTOP_VIEWPORT_SCRIPT = `
 
 function isTranslatedUrl(url: string): boolean {
   try {
-    const h = new URL(url).hostname;
-    return h === 'translate.google.com' || h.endsWith('.translate.goog');
+    return new URL(url).hostname.endsWith('.translate.goog');
   } catch {
     return false;
+  }
+}
+
+function buildTranslateUrl(original: string): string {
+  const u = new URL(original);
+  const host = u.hostname.replace(/\./g, '-') + '.translate.goog';
+  const path = u.pathname + u.search;
+  const sep = path.includes('?') ? '&' : '?';
+  return `https://${host}${path}${sep}_x_tr_sl=auto&_x_tr_tl=ar&_x_tr_hl=en&_x_tr_pto=wapp`;
+}
+
+function unwrapTranslatedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.endsWith('.translate.goog')) return null;
+    const originalHost = u.hostname.slice(0, -'.translate.goog'.length).replace(/-/g, '.');
+    const params = new URLSearchParams(u.search);
+    ['_x_tr_sl', '_x_tr_tl', '_x_tr_hl', '_x_tr_pto'].forEach((k) => params.delete(k));
+    const qs = params.toString();
+    return `https://${originalHost}${u.pathname}${qs ? '?' + qs : ''}`;
+  } catch {
+    return null;
   }
 }
 
@@ -246,9 +267,11 @@ function BrowserHost() {
   };
 
   // Reads the live URL straight from the webview (not our possibly-stale
-  // React state) and skips re-wrapping if that page is already a Google
-  // Translate proxy — covers both the old translate.google.com/translate?u=
-  // scheme and the newer per-site *.translate.goog domain.
+  // React state). Uses the *.translate.goog scheme (full real pages, not an
+  // iframe), so location.href updates correctly as you browse inside the
+  // translated site — toggling translate again re-translates the actual
+  // sub-page you're on, or unwraps back to the original if already
+  // translated.
   const handleTranslate = async () => {
     if (isHome || !webviewIdRef.current) return;
     let liveUrl = currentUrl;
@@ -263,11 +286,12 @@ function BrowserHost() {
     }
 
     if (isTranslatedUrl(liveUrl)) {
-      // Already viewing a translated page — nothing more to do.
+      const original = unwrapTranslatedUrl(liveUrl);
+      if (original) navigate(original);
       return;
     }
 
-    navigate(`https://translate.google.com/translate?sl=auto&tl=ar&u=${encodeURIComponent(liveUrl)}`);
+    navigate(buildTranslateUrl(liveUrl));
   };
 
   const submitFind = (e: React.FormEvent) => {
