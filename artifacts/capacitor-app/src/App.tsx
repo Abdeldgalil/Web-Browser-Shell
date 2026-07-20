@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { InAppBrowser } from '@capgo/capacitor-inappbrowser';
 import { X } from 'lucide-react';
 import { useColors } from './hooks/useColors';
@@ -32,6 +33,15 @@ const DESKTOP_VIEWPORT_SCRIPT = `
 
 function BrowserHost() {
   const colors = useColors();
+
+  // Make the status bar transparent so our own background/photo extends
+  // underneath it (edge-to-edge), instead of leaving a plain white strip.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+  }, []);
+
   const {
     currentUrl,
     activeTabId,
@@ -55,7 +65,7 @@ function BrowserHost() {
   const webviewIdRef = useRef<string | null>(null);
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
-const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
+  const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
 
   // Hide the native embedded webview (without closing it) whenever any of
   // our own HTML modals are open, since the native view always paints above
@@ -68,6 +78,7 @@ const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
       (InAppBrowser as any).show({ id: webviewIdRef.current }).catch(() => {});
     }
   }, [anyModalOpen, isNative]);
+
   const urlBarHeight = safeAreaTop() + URL_BAR_CONTENT_HEIGHT + URL_BAR_BOTTOM_PAD;
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
   const topPad = isHome ? safeAreaTop() : urlBarHeight;
