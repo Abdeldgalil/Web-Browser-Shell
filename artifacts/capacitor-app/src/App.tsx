@@ -32,11 +32,18 @@ const DESKTOP_VIEWPORT_SCRIPT = `
 })();
 `;
 
+function isTranslatedUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    return h === 'translate.google.com' || h.endsWith('.translate.goog');
+  } catch {
+    return false;
+  }
+}
+
 function BrowserHost() {
   const colors = useColors();
 
-  // Make the status bar transparent so our own background/photo extends
-  // underneath it (edge-to-edge), instead of leaving a plain white strip.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
@@ -72,8 +79,6 @@ function BrowserHost() {
   const isHome = currentUrl === HOME_URL;
   const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
 
-  // Hardware back button: close a modal if one's open, else use our own
-  // in-app back stack, else go home, else close the tab, else exit the app.
   useEffect(() => {
     if (!isNative) return;
     const sub = CapacitorApp.addListener('backButton', () => {
@@ -103,9 +108,6 @@ function BrowserHost() {
     };
   }, [isNative, anyModalOpen, showFindBar, canGoBack, goBack, isHome, goHome, tabs.length, activeTabId, closeTab]);
 
-  // Hide the native embedded webview (without closing it) whenever any of
-  // our own HTML modals are open, since the native view always paints above
-  // the Capacitor webview regardless of CSS z-index.
   useEffect(() => {
     if (!isNative || !webviewIdRef.current) return;
     if (anyModalOpen) {
@@ -120,6 +122,10 @@ function BrowserHost() {
   const topPad = isHome ? safeAreaTop() : urlBarHeight;
 
   // Open / reposition / close the embedded webview. Re-runs on tab switch too.
+  // Always fully closes and reopens on every navigation (including back/
+  // forward) instead of using setUrl — setUrl proved unreliable, sometimes
+  // silently ignoring a navigation while the previous page was still
+  // loading, which is why back required two presses.
   useEffect(() => {
     if (!isNative) return;
 
@@ -140,33 +146,22 @@ function BrowserHost() {
       const height = window.innerHeight - urlBarHeight - toolbarHeight;
       const yPx = urlBarHeight;
 
-      if (!webviewIdRef.current) {
-        const { id } = await InAppBrowser.openWebView({
-          url: currentUrl,
-          toolbarType: 'blank',
-          width,
-          height,
-          x: 0,
-          y: yPx,
-        } as any);
-        if (cancelled) return;
-        webviewIdRef.current = id ?? null;
-      } else {
-        try {
-          await (InAppBrowser as any).setUrl({ id: webviewIdRef.current, url: currentUrl });
-        } catch {
-          await InAppBrowser.close();
-          const { id } = await InAppBrowser.openWebView({
-            url: currentUrl,
-            toolbarType: 'blank',
-            width,
-            height,
-            x: 0,
-            y: yPx,
-          } as any);
-          webviewIdRef.current = id ?? null;
-        }
+      if (webviewIdRef.current) {
+        await InAppBrowser.close().catch(() => {});
+        webviewIdRef.current = null;
       }
+      if (cancelled) return;
+
+      const { id } = await InAppBrowser.openWebView({
+        url: currentUrl,
+        toolbarType: 'blank',
+        width,
+        height,
+        x: 0,
+        y: yPx,
+      } as any);
+      if (cancelled) return;
+      webviewIdRef.current = id ?? null;
     }
 
     openOrUpdate();
@@ -250,9 +245,10 @@ function BrowserHost() {
     browserRef.current?.toggleDesktopSite();
   };
 
-  // Always translates the page actually on screen right now (read live from
-  // the webview), and unwraps an existing translate.google.com proxy URL
-  // first so translating twice in a row doesn't double-wrap and break.
+  // Reads the live URL straight from the webview (not our possibly-stale
+  // React state) and skips re-wrapping if that page is already a Google
+  // Translate proxy — covers both the old translate.google.com/translate?u=
+  // scheme and the newer per-site *.translate.goog domain.
   const handleTranslate = async () => {
     if (isHome || !webviewIdRef.current) return;
     let liveUrl = currentUrl;
@@ -265,14 +261,12 @@ function BrowserHost() {
     } catch {
       // fall back to the last known currentUrl
     }
-    try {
-      const parsed = new URL(liveUrl);
-      if (parsed.hostname === 'translate.google.com' && parsed.searchParams.has('u')) {
-        liveUrl = parsed.searchParams.get('u') || liveUrl;
-      }
-    } catch {
-      // not a valid URL — ignore unwrap attempt
+
+    if (isTranslatedUrl(liveUrl)) {
+      // Already viewing a translated page — nothing more to do.
+      return;
     }
+
     navigate(`https://translate.google.com/translate?sl=auto&tl=ar&u=${encodeURIComponent(liveUrl)}`);
   };
 
