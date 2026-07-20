@@ -39,7 +39,7 @@ function BrowserHost() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
-    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+   StatusBar.setStyle({ style: Style.Light }).catch(() => {}); 
   }, []);
 
   const {
