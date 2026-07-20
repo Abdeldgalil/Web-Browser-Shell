@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { Share } from '@capacitor/share';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { InAppBrowser } from '@capgo/capacitor-inappbrowser';
@@ -39,20 +40,24 @@ function BrowserHost() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
-   StatusBar.setStyle({ style: Style.Light }).catch(() => {}); 
+    StatusBar.setStyle({ style: Style.Light }).catch(() => {});
   }, []);
 
   const {
     currentUrl,
     activeTabId,
+    tabs,
     pageTitle,
     navigate,
+    goHome,
+    goBack,
+    goForward,
+    canGoBack,
     setIsLoading,
-    setCanGoBack,
-    setCanGoForward,
     setPageTitle,
     addToHistory,
     browserRef,
+    closeTab,
   } = useBrowser();
 
   const [showBookmarks, setShowBookmarks] = useState(false);
@@ -66,6 +71,37 @@ function BrowserHost() {
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
   const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
+
+  // Hardware back button: close a modal if one's open, else use our own
+  // in-app back stack, else go home, else close the tab, else exit the app.
+  useEffect(() => {
+    if (!isNative) return;
+    const sub = CapacitorApp.addListener('backButton', () => {
+      if (anyModalOpen) {
+        setShowBookmarks(false);
+        setShowHistory(false);
+        setShowMore(false);
+        setShowTabs(false);
+        return;
+      }
+      if (showFindBar) {
+        setShowFindBar(false);
+        return;
+      }
+      if (canGoBack) {
+        goBack();
+      } else if (!isHome) {
+        goHome();
+      } else if (tabs.length > 1) {
+        closeTab(activeTabId);
+      } else {
+        CapacitorApp.exitApp();
+      }
+    });
+    return () => {
+      sub.then((h) => h.remove());
+    };
+  }, [isNative, anyModalOpen, showFindBar, canGoBack, goBack, isHome, goHome, tabs.length, activeTabId, closeTab]);
 
   // Hide the native embedded webview (without closing it) whenever any of
   // our own HTML modals are open, since the native view always paints above
@@ -158,14 +194,6 @@ function BrowserHost() {
 
   useEffect(() => {
     browserRef.current = {
-      goBack: () => {
-        if (!webviewIdRef.current) return;
-        InAppBrowser.executeScript({ id: webviewIdRef.current, code: 'history.back();' } as any).catch(() => {});
-      },
-      goForward: () => {
-        if (!webviewIdRef.current) return;
-        InAppBrowser.executeScript({ id: webviewIdRef.current, code: 'history.forward();' } as any).catch(() => {});
-      },
       reload: () => {
         if (!webviewIdRef.current) return;
         InAppBrowser.executeScript({ id: webviewIdRef.current, code: 'location.reload();' } as any).catch(() => {});
@@ -180,9 +208,7 @@ function BrowserHost() {
         InAppBrowser.executeScript({ id: webviewIdRef.current, code: DESKTOP_VIEWPORT_SCRIPT } as any).catch(() => {});
       },
     };
-    setCanGoBack(true);
-    setCanGoForward(true);
-  }, [browserRef, setCanGoBack, setCanGoForward]);
+  }, [browserRef]);
 
   useEffect(() => {
     if (!isNative) return;
@@ -224,9 +250,30 @@ function BrowserHost() {
     browserRef.current?.toggleDesktopSite();
   };
 
-  const handleTranslate = () => {
-    if (isHome) return;
-    navigate(`https://translate.google.com/translate?sl=auto&tl=ar&u=${encodeURIComponent(currentUrl)}`);
+  // Always translates the page actually on screen right now (read live from
+  // the webview), and unwraps an existing translate.google.com proxy URL
+  // first so translating twice in a row doesn't double-wrap and break.
+  const handleTranslate = async () => {
+    if (isHome || !webviewIdRef.current) return;
+    let liveUrl = currentUrl;
+    try {
+      const result = await InAppBrowser.executeScript({
+        id: webviewIdRef.current,
+        code: 'location.href',
+      } as any);
+      if ((result as any)?.result) liveUrl = (result as any).result;
+    } catch {
+      // fall back to the last known currentUrl
+    }
+    try {
+      const parsed = new URL(liveUrl);
+      if (parsed.hostname === 'translate.google.com' && parsed.searchParams.has('u')) {
+        liveUrl = parsed.searchParams.get('u') || liveUrl;
+      }
+    } catch {
+      // not a valid URL — ignore unwrap attempt
+    }
+    navigate(`https://translate.google.com/translate?sl=auto&tl=ar&u=${encodeURIComponent(liveUrl)}`);
   };
 
   const submitFind = (e: React.FormEvent) => {
