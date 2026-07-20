@@ -55,7 +55,19 @@ function BrowserHost() {
   const webviewIdRef = useRef<string | null>(null);
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
+const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
 
+  // Hide the native embedded webview (without closing it) whenever any of
+  // our own HTML modals are open, since the native view always paints above
+  // the Capacitor webview regardless of CSS z-index.
+  useEffect(() => {
+    if (!isNative || !webviewIdRef.current) return;
+    if (anyModalOpen) {
+      (InAppBrowser as any).hide({ id: webviewIdRef.current }).catch(() => {});
+    } else {
+      (InAppBrowser as any).show({ id: webviewIdRef.current }).catch(() => {});
+    }
+  }, [anyModalOpen, isNative]);
   const urlBarHeight = safeAreaTop() + URL_BAR_CONTENT_HEIGHT + URL_BAR_BOTTOM_PAD;
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
   const topPad = isHome ? safeAreaTop() : urlBarHeight;
