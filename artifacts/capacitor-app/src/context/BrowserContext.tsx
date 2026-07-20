@@ -46,13 +46,13 @@ export interface Tab {
   id: string;
   url: string;
   title: string;
+  stack: string[];
+  index: number;
 }
 
 // Populated by the embedded-browser controller in App.tsx once the native
 // InAppBrowser WebView is opened.
 export interface EmbeddedBrowserHandle {
-  goBack: () => void;
-  goForward: () => void;
   reload: () => void;
   findInPage: (term: string) => void;
   toggleDesktopSite: () => void;
@@ -63,7 +63,7 @@ function makeId() {
 }
 
 function makeTab(url: string = HOME_URL): Tab {
-  return { id: makeId(), url, title: '' };
+  return { id: makeId(), url, title: '', stack: [url], index: 0 };
 }
 
 interface BrowserContextType {
@@ -75,9 +75,7 @@ interface BrowserContextType {
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   canGoBack: boolean;
-  setCanGoBack: (v: boolean) => void;
   canGoForward: boolean;
-  setCanGoForward: (v: boolean) => void;
   browserRef: React.MutableRefObject<EmbeddedBrowserHandle | null>;
   history: HistoryEntry[];
   bookmarks: Bookmark[];
@@ -108,8 +106,6 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
   const [isLoading, setIsLoading] = useState(false);
-  const [canGoBack, setCanGoBack] = useState(false);
-  const [canGoForward, setCanGoForward] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
@@ -117,6 +113,8 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
   const currentUrl = activeTab?.url ?? HOME_URL;
   const pageTitle = activeTab?.title ?? '';
+  const canGoBack = (activeTab?.index ?? 0) > 0;
+  const canGoForward = (activeTab?.index ?? 0) < (activeTab?.stack.length ?? 1) - 1;
 
   useEffect(() => {
     Preferences.get({ key: HISTORY_KEY }).then(({ value }) => {
@@ -134,19 +132,53 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     [activeTabId]
   );
 
+  // Pushes a new URL onto this tab's own back/forward stack (truncating any
+  // forward entries), rather than relying on the embedded native WebView's
+  // history — which doesn't reliably track our own setUrl-based navigation.
   const navigate = useCallback(
     (url: string) => {
       const normalized = normalizeUrl(url);
-      updateActiveTab({ url: normalized });
-      setCanGoBack(false);
-      setCanGoForward(false);
+      setTabs((prev) =>
+        prev.map((t) => {
+          if (t.id !== activeTabId) return t;
+          const truncated = t.stack.slice(0, t.index + 1);
+          const nextStack = [...truncated, normalized];
+          return {
+            ...t,
+            url: normalized,
+            title: normalized === HOME_URL ? '' : t.title,
+            stack: nextStack,
+            index: nextStack.length - 1,
+          };
+        })
+      );
     },
-    [updateActiveTab]
+    [activeTabId]
   );
 
   const goHome = useCallback(() => {
-    updateActiveTab({ url: HOME_URL, title: '' });
-  }, [updateActiveTab]);
+    navigate(HOME_URL);
+  }, [navigate]);
+
+  const goBack = useCallback(() => {
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTabId || t.index <= 0) return t;
+        const newIndex = t.index - 1;
+        return { ...t, index: newIndex, url: t.stack[newIndex] };
+      })
+    );
+  }, [activeTabId]);
+
+  const goForward = useCallback(() => {
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTabId || t.index >= t.stack.length - 1) return t;
+        const newIndex = t.index + 1;
+        return { ...t, index: newIndex, url: t.stack[newIndex] };
+      })
+    );
+  }, [activeTabId]);
 
   const setPageTitle = useCallback(
     (t: string) => {
@@ -242,8 +274,6 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const goBack = useCallback(() => browserRef.current?.goBack(), []);
-  const goForward = useCallback(() => browserRef.current?.goForward(), []);
   const reload = useCallback(() => browserRef.current?.reload(), []);
   const findInPage = useCallback((term: string) => browserRef.current?.findInPage(term), []);
   const toggleDesktopSite = useCallback(() => browserRef.current?.toggleDesktopSite(), []);
@@ -259,9 +289,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         setIsLoading,
         canGoBack,
-        setCanGoBack,
         canGoForward,
-        setCanGoForward,
         browserRef,
         history,
         bookmarks,
