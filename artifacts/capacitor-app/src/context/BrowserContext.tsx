@@ -48,10 +48,9 @@ export interface Tab {
   title: string;
   stack: string[];
   index: number;
+  incognito: boolean;
 }
 
-// Populated by the embedded-browser controller in App.tsx once the native
-// InAppBrowser WebView is opened.
 export interface EmbeddedBrowserHandle {
   reload: () => void;
   findInPage: (term: string) => void;
@@ -62,8 +61,8 @@ function makeId() {
   return Date.now().toString() + Math.random().toString(36).substring(2, 7);
 }
 
-function makeTab(url: string = HOME_URL): Tab {
-  return { id: makeId(), url, title: '', stack: [url], index: 0 };
+function makeTab(url: string = HOME_URL, incognito: boolean = false): Tab {
+  return { id: makeId(), url, title: '', stack: [url], index: 0, incognito };
 }
 
 interface BrowserContextType {
@@ -72,6 +71,7 @@ interface BrowserContextType {
   currentUrl: string;
   pageTitle: string;
   setPageTitle: (t: string) => void;
+  isIncognito: boolean;
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   canGoBack: boolean;
@@ -81,7 +81,7 @@ interface BrowserContextType {
   bookmarks: Bookmark[];
   navigate: (url: string) => void;
   goHome: () => void;
-  newTab: (url?: string) => void;
+  newTab: (url?: string, incognito?: boolean) => void;
   closeTab: (id: string) => void;
   switchTab: (id: string) => void;
   addToHistory: (url: string, title: string) => void;
@@ -113,6 +113,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
   const currentUrl = activeTab?.url ?? HOME_URL;
   const pageTitle = activeTab?.title ?? '';
+  const isIncognito = activeTab?.incognito ?? false;
   const canGoBack = (activeTab?.index ?? 0) > 0;
   const canGoForward = (activeTab?.index ?? 0) < (activeTab?.stack.length ?? 1) - 1;
 
@@ -132,9 +133,6 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     [activeTabId]
   );
 
-  // Pushes a new URL onto this tab's own back/forward stack (truncating any
-  // forward entries), rather than relying on the embedded native WebView's
-  // history — which doesn't reliably track our own setUrl-based navigation.
   const navigate = useCallback(
     (url: string) => {
       const normalized = normalizeUrl(url);
@@ -200,8 +198,8 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     [updateActiveTab]
   );
 
-  const newTab = useCallback((url: string = HOME_URL) => {
-    const tab = makeTab(url);
+  const newTab = useCallback((url: string = HOME_URL, incognito: boolean = false) => {
+    const tab = makeTab(url, incognito);
     setTabs((prev) => [...prev, tab]);
     setActiveTabId(tab.id);
   }, []);
@@ -299,6 +297,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         currentUrl,
         pageTitle,
         setPageTitle,
+        isIncognito,
         isLoading,
         setIsLoading,
         canGoBack,
