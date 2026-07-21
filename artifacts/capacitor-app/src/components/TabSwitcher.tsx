@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Glasses } from 'lucide-react';
 import { useColors } from '../hooks/useColors';
 import { useBrowser, getDisplayUrl, HOME_URL } from '../context/BrowserContext';
 
@@ -38,9 +38,9 @@ export default function TabSwitcher({ visible, onClose }: Props) {
             return (
               <button
                 key={tab.id}
-                className="tabswitcher-card"
+                className={`tabswitcher-card${tab.incognito ? ' tabswitcher-card-incognito' : ''}`}
                 style={{
-                  background: colors.muted,
+                  background: tab.incognito ? undefined : colors.muted,
                   borderColor: isActive ? colors.primary : 'transparent',
                 }}
                 onClick={() => {
@@ -50,7 +50,10 @@ export default function TabSwitcher({ visible, onClose }: Props) {
               >
                 <button
                   className="tabswitcher-close"
-                  style={{ background: colors.card, color: colors.mutedForeground }}
+                  style={{
+                    background: tab.incognito ? 'rgba(255,255,255,0.15)' : colors.card,
+                    color: tab.incognito ? '#fff' : colors.mutedForeground,
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     closeTab(tab.id);
@@ -58,9 +61,20 @@ export default function TabSwitcher({ visible, onClose }: Props) {
                 >
                   <X size={13} strokeWidth={2.5} />
                 </button>
-                <div className="tabswitcher-card-icon">{tab.url === HOME_URL ? '🧭' : '🌐'}</div>
-                <div className="tabswitcher-card-label" style={{ color: colors.foreground }}>
-                  {label}
+                <div className="tabswitcher-card-icon">
+                  {tab.incognito ? (
+                    <Glasses size={30} strokeWidth={2} color="#fff" />
+                  ) : tab.url === HOME_URL ? (
+                    '🧭'
+                  ) : (
+                    '🌐'
+                  )}
+                </div>
+                <div
+                  className="tabswitcher-card-label"
+                  style={{ color: tab.incognito ? '#fff' : colors.foreground }}
+                >
+                  {tab.incognito ? 'Private' : label}
                 </div>
               </button>
             );
@@ -76,6 +90,17 @@ export default function TabSwitcher({ visible, onClose }: Props) {
           >
             <Plus size={26} strokeWidth={2} />
             <span>New Tab</span>
+          </button>
+
+          <button
+            className="tabswitcher-new tabswitcher-new-incognito"
+            onClick={() => {
+              newTab(HOME_URL, true);
+              onClose();
+            }}
+          >
+            <Glasses size={26} strokeWidth={2} />
+            <span>Private Tab</span>
           </button>
         </div>
       </div>
