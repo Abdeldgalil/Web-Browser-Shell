@@ -96,6 +96,7 @@ function BrowserHost() {
   const [findTerm, setFindTerm] = useState('');
   const [desktopMode, setDesktopMode] = useState(false);
   const webviewIdRef = useRef<string | null>(null);
+  const liveUrlRef = useRef<string>(HOME_URL);
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
   const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
@@ -183,6 +184,7 @@ function BrowserHost() {
       } as any);
       if (cancelled) return;
       webviewIdRef.current = id ?? null;
+      liveUrlRef.current = currentUrl;
     }
 
     openOrUpdate();
@@ -232,6 +234,7 @@ function BrowserHost() {
       InAppBrowser.addListener('urlChangeEvent', async (event: any) => {
         const url = event?.url;
         if (!url) return;
+        liveUrlRef.current = url;
         try {
           const result = await InAppBrowser.executeScript({
             id: webviewIdRef.current ?? undefined,
@@ -266,24 +269,12 @@ function BrowserHost() {
     browserRef.current?.toggleDesktopSite();
   };
 
-  // Reads the live URL straight from the webview (not our possibly-stale
-  // React state). Uses the *.translate.goog scheme (full real pages, not an
-  // iframe), so location.href updates correctly as you browse inside the
-  // translated site — toggling translate again re-translates the actual
-  // sub-page you're on, or unwraps back to the original if already
-  // translated.
-  const handleTranslate = async () => {
-    if (isHome || !webviewIdRef.current) return;
-    let liveUrl = currentUrl;
-    try {
-      const result = await InAppBrowser.executeScript({
-        id: webviewIdRef.current,
-        code: 'location.href',
-      } as any);
-      if ((result as any)?.result) liveUrl = (result as any).result;
-    } catch {
-      // fall back to the last known currentUrl
-    }
+  // Uses the last URL reported by urlChangeEvent (kept in a ref, always
+  // fresh) instead of asking the page via executeScript, which can fail
+  // silently on sites with strict CSP and fall back to a stale value.
+  const handleTranslate = () => {
+    if (isHome) return;
+    const liveUrl = liveUrlRef.current;
 
     if (isTranslatedUrl(liveUrl)) {
       const original = unwrapTranslatedUrl(liveUrl);
