@@ -641,3 +641,13 @@ button {
   height: 1px;
   margin: 6px 12px;
 }
+/* ---------- Incognito ---------- */
+.tabswitcher-card-incognito {
+  background: linear-gradient(160deg, #2d1b42, #1a0f2b) !important;
+}
+.tabswitcher-new-incognito {
+  border-style: solid !important;
+  background: linear-gradient(160deg, #2d1b42, #1a0f2b);
+  color: #fff !important;
+  border-color: transparent !important;
+}
