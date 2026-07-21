@@ -157,8 +157,21 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   );
 
   const goHome = useCallback(() => {
-    navigate(HOME_URL);
-  }, [navigate]);
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTabId) return t;
+        const truncated = t.stack.slice(0, t.index + 1);
+        const nextStack = [...truncated, HOME_URL];
+        return {
+          ...t,
+          url: HOME_URL,
+          title: '',
+          stack: nextStack,
+          index: nextStack.length - 1,
+        };
+      })
+    );
+  }, [activeTabId]);
 
   const goBack = useCallback(() => {
     setTabs((prev) =>
