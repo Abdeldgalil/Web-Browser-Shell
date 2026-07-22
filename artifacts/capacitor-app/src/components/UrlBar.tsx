@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Lock, Globe, Search, X, Glasses } from 'lucide-react';
+import { Lock, Globe, Search, X, VenetianMask } from 'lucide-react';
 import { useColors, useColorScheme } from '../hooks/useColors';
 import { useBrowser, normalizeUrl, getDisplayUrl, HOME_URL } from '../context/BrowserContext';
 
@@ -61,7 +61,9 @@ export default function UrlBar() {
           >
             <span className="urlbar-lock" style={{ color: mutedColor }}>
               {isIncognito ? (
-                <Glasses size={13} strokeWidth={2.25} />
+                <span className="incognito-badge incognito-badge-sm">
+                  <VenetianMask size={11} strokeWidth={2.25} color="#fff" />
+                </span>
               ) : isHome ? (
                 <Search size={13} strokeWidth={2.25} />
               ) : isHttps ? (
