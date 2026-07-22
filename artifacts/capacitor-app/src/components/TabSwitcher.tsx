@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, Glasses } from 'lucide-react';
+import { Plus, X, VenetianMask } from 'lucide-react';
 import { useColors } from '../hooks/useColors';
 import { useBrowser, getDisplayUrl, HOME_URL } from '../context/BrowserContext';
 
@@ -63,7 +63,9 @@ export default function TabSwitcher({ visible, onClose }: Props) {
                 </button>
                 <div className="tabswitcher-card-icon">
                   {tab.incognito ? (
-                    <Glasses size={30} strokeWidth={2} color="#fff" />
+                    <span className="incognito-badge incognito-badge-lg">
+                      <VenetianMask size={26} strokeWidth={2} color="#fff" />
+                    </span>
                   ) : tab.url === HOME_URL ? (
                     '🧭'
                   ) : (
@@ -99,7 +101,9 @@ export default function TabSwitcher({ visible, onClose }: Props) {
               onClose();
             }}
           >
-            <Glasses size={26} strokeWidth={2} />
+            <span className="incognito-badge incognito-badge-md">
+              <VenetianMask size={22} strokeWidth={2} color="#fff" />
+            </span>
             <span>Private Tab</span>
           </button>
         </div>
