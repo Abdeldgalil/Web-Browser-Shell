@@ -76,6 +76,7 @@ function BrowserHost() {
     activeTabId,
     tabs,
     pageTitle,
+    isIncognito,
     navigate,
     goHome,
     goBack,
@@ -97,9 +98,14 @@ function BrowserHost() {
   const [desktopMode, setDesktopMode] = useState(false);
   const webviewIdRef = useRef<string | null>(null);
   const liveUrlRef = useRef<string>(HOME_URL);
+  const isIncognitoRef = useRef(false);
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
   const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
+
+  useEffect(() => {
+    isIncognitoRef.current = isIncognito;
+  }, [isIncognito]);
 
   useEffect(() => {
     if (!isNative) return;
@@ -242,9 +248,9 @@ function BrowserHost() {
           } as any);
           const title = (result as any)?.result ?? '';
           setPageTitle(title);
-          addToHistory(url, title);
+          if (!isIncognitoRef.current) addToHistory(url, title);
         } catch {
-          addToHistory(url, '');
+          if (!isIncognitoRef.current) addToHistory(url, '');
         }
       }),
       InAppBrowser.addListener('browserPageLoaded', () => setIsLoading(false)),
