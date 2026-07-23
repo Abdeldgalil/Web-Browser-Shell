@@ -13,6 +13,7 @@ import BookmarksModal from './components/BookmarksModal';
 import HistoryModal from './components/HistoryModal';
 import MoreMenu from './components/MoreMenu';
 import TabSwitcher from './components/TabSwitcher';
+import DownloadsModal from './components/DownloadsModal';
 import HomePage from './components/HomePage';
 
 function safeAreaTop(): number {
@@ -29,6 +30,30 @@ const DESKTOP_VIEWPORT_SCRIPT = `
   var m = document.querySelector('meta[name="viewport"]');
   if (!m) { m = document.createElement('meta'); m.name = 'viewport'; document.head.appendChild(m); }
   m.setAttribute('content', 'width=1280');
+})();
+`;
+
+const MEDIA_SCAN_SCRIPT = `
+(function() {
+  var exts = ['mp4','webm','mov','mkv','mp3','wav','m4a','ogg','pdf','doc','docx','xls','xlsx','ppt','pptx','zip','png','jpg','jpeg','gif','webp','svg'];
+  var found = {};
+  function add(url, kind) { if (url && !found[url]) found[url] = kind; }
+  document.querySelectorAll('a[href]').forEach(function(a) {
+    try {
+      var u = new URL(a.href, location.href);
+      var ext = u.pathname.split('.').pop().toLowerCase();
+      if (exts.indexOf(ext) !== -1) add(u.href, ext);
+    } catch (e) {}
+  });
+  document.querySelectorAll('video[src], video source[src]').forEach(function(v) {
+    try { add(new URL(v.src, location.href).href, 'video'); } catch (e) {}
+  });
+  document.querySelectorAll('audio[src], audio source[src]').forEach(function(a) {
+    try { add(new URL(a.src, location.href).href, 'audio'); } catch (e) {}
+  });
+  var out = [];
+  for (var k in found) out.push({ url: k, type: found[k] });
+  return JSON.stringify(out.slice(0, 30));
 })();
 `;
 
@@ -93,6 +118,7 @@ function BrowserHost() {
   const [showHistory, setShowHistory] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showTabs, setShowTabs] = useState(false);
+  const [showDownloads, setShowDownloads] = useState(false);
   const [showFindBar, setShowFindBar] = useState(false);
   const [findTerm, setFindTerm] = useState('');
   const [desktopMode, setDesktopMode] = useState(false);
@@ -101,7 +127,7 @@ function BrowserHost() {
   const isIncognitoRef = useRef(false);
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
-  const anyModalOpen = showBookmarks || showHistory || showMore || showTabs;
+  const anyModalOpen = showBookmarks || showHistory || showMore || showTabs || showDownloads;
 
   useEffect(() => {
     isIncognitoRef.current = isIncognito;
@@ -115,6 +141,7 @@ function BrowserHost() {
         setShowHistory(false);
         setShowMore(false);
         setShowTabs(false);
+        setShowDownloads(false);
         return;
       }
       if (showFindBar) {
@@ -149,11 +176,6 @@ function BrowserHost() {
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
   const topPad = isHome ? safeAreaTop() : urlBarHeight;
 
-  // Open / reposition / close the embedded webview. Re-runs on tab switch too.
-  // Always fully closes and reopens on every navigation (including back/
-  // forward) instead of using setUrl — setUrl proved unreliable, sometimes
-  // silently ignoring a navigation while the previous page was still
-  // loading, which is why back required two presses.
   useEffect(() => {
     if (!isNative) return;
 
@@ -275,9 +297,6 @@ function BrowserHost() {
     browserRef.current?.toggleDesktopSite();
   };
 
-  // Uses the last URL reported by urlChangeEvent (kept in a ref, always
-  // fresh) instead of asking the page via executeScript, which can fail
-  // silently on sites with strict CSP and fall back to a stale value.
   const handleTranslate = () => {
     if (isHome) return;
     const liveUrl = liveUrlRef.current;
@@ -289,6 +308,21 @@ function BrowserHost() {
     }
 
     navigate(buildTranslateUrl(liveUrl));
+  };
+
+  const scanPageMedia = async (): Promise<{ url: string; type: string }[]> => {
+    if (!webviewIdRef.current) return [];
+    try {
+      const result = await InAppBrowser.executeScript({
+        id: webviewIdRef.current,
+        code: MEDIA_SCAN_SCRIPT,
+      } as any);
+      const raw = (result as any)?.result;
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
   };
 
   const submitFind = (e: React.FormEvent) => {
@@ -350,6 +384,12 @@ function BrowserHost() {
       <BookmarksModal visible={showBookmarks} onClose={() => setShowBookmarks(false)} />
       <HistoryModal visible={showHistory} onClose={() => setShowHistory(false)} />
       <TabSwitcher visible={showTabs} onClose={() => setShowTabs(false)} />
+      <DownloadsModal
+        visible={showDownloads}
+        onClose={() => setShowDownloads(false)}
+        canScanPage={!isHome && isNative}
+        onScanPage={scanPageMedia}
+      />
       <MoreMenu
         visible={showMore}
         onClose={() => setShowMore(false)}
@@ -359,6 +399,7 @@ function BrowserHost() {
         onTranslate={handleTranslate}
         onOpenBookmarks={() => setShowBookmarks(true)}
         onOpenHistory={() => setShowHistory(true)}
+        onOpenDownloads={() => setShowDownloads(true)}
         desktopMode={desktopMode}
         disabled={isHome}
       />
