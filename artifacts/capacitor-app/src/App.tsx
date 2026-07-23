@@ -33,30 +33,6 @@ const DESKTOP_VIEWPORT_SCRIPT = `
 })();
 `;
 
-const MEDIA_SCAN_SCRIPT = `
-(function() {
-  var exts = ['mp4','webm','mov','mkv','mp3','wav','m4a','ogg','pdf','doc','docx','xls','xlsx','ppt','pptx','zip','png','jpg','jpeg','gif','webp','svg'];
-  var found = {};
-  function add(url, kind) { if (url && !found[url]) found[url] = kind; }
-  document.querySelectorAll('a[href]').forEach(function(a) {
-    try {
-      var u = new URL(a.href, location.href);
-      var ext = u.pathname.split('.').pop().toLowerCase();
-      if (exts.indexOf(ext) !== -1) add(u.href, ext);
-    } catch (e) {}
-  });
-  document.querySelectorAll('video[src], video source[src]').forEach(function(v) {
-    try { add(new URL(v.src, location.href).href, 'video'); } catch (e) {}
-  });
-  document.querySelectorAll('audio[src], audio source[src]').forEach(function(a) {
-    try { add(new URL(a.src, location.href).href, 'audio'); } catch (e) {}
-  });
-  var out = [];
-  for (var k in found) out.push({ url: k, type: found[k] });
-  return JSON.stringify(out.slice(0, 30));
-})();
-`;
-
 function isTranslatedUrl(url: string): boolean {
   try {
     return new URL(url).hostname.endsWith('.translate.goog');
@@ -110,6 +86,8 @@ function BrowserHost() {
     setIsLoading,
     setPageTitle,
     addToHistory,
+    recordDownloadCompleted,
+    recordDownloadFailed,
     browserRef,
     closeTab,
   } = useBrowser();
@@ -205,6 +183,7 @@ function BrowserHost() {
       const { id } = await InAppBrowser.openWebView({
         url: currentUrl,
         toolbarType: 'blank',
+        handleDownloads: true,
         width,
         height,
         x: 0,
@@ -277,6 +256,12 @@ function BrowserHost() {
       }),
       InAppBrowser.addListener('browserPageLoaded', () => setIsLoading(false)),
       InAppBrowser.addListener('pageLoadError', () => setIsLoading(false)),
+      InAppBrowser.addListener('downloadCompleted', (event: any) => {
+        recordDownloadCompleted(event);
+      }),
+      InAppBrowser.addListener('downloadFailed', (event: any) => {
+        recordDownloadFailed(event);
+      }),
     ];
     return () => {
       subs.forEach((p) => p.then((h) => h.remove()));
@@ -308,21 +293,6 @@ function BrowserHost() {
     }
 
     navigate(buildTranslateUrl(liveUrl));
-  };
-
-  const scanPageMedia = async (): Promise<{ url: string; type: string }[]> => {
-    if (!webviewIdRef.current) return [];
-    try {
-      const result = await InAppBrowser.executeScript({
-        id: webviewIdRef.current,
-        code: MEDIA_SCAN_SCRIPT,
-      } as any);
-      const raw = (result as any)?.result;
-      if (!raw) return [];
-      return JSON.parse(raw);
-    } catch {
-      return [];
-    }
   };
 
   const submitFind = (e: React.FormEvent) => {
@@ -384,12 +354,7 @@ function BrowserHost() {
       <BookmarksModal visible={showBookmarks} onClose={() => setShowBookmarks(false)} />
       <HistoryModal visible={showHistory} onClose={() => setShowHistory(false)} />
       <TabSwitcher visible={showTabs} onClose={() => setShowTabs(false)} />
-      <DownloadsModal
-        visible={showDownloads}
-        onClose={() => setShowDownloads(false)}
-        canScanPage={!isHome && isNative}
-        onScanPage={scanPageMedia}
-      />
+      <DownloadsModal visible={showDownloads} onClose={() => setShowDownloads(false)} />
       <MoreMenu
         visible={showMore}
         onClose={() => setShowMore(false)}
