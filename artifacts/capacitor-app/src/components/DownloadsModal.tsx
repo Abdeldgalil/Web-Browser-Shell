@@ -26,7 +26,10 @@ function filenameOf(url: string): string {
 
 export default function DownloadsModal({ visible, onClose, canScanPage, onScanPage }: Props) {
   const colors = useColors();
-  const { downloads, startDownload, removeDownload } = useBrowser();
+  const browserCtx = useBrowser();
+  const downloads = browserCtx.downloads ?? [];
+  const startDownload = browserCtx.startDownload;
+  const removeDownload = browserCtx.removeDownload;
   const [scanning, setScanning] = useState(false);
   const [detected, setDetected] = useState<DetectedItem[]>([]);
   const [scanned, setScanned] = useState(false);
@@ -38,7 +41,7 @@ export default function DownloadsModal({ visible, onClose, canScanPage, onScanPa
     setScanned(false);
     try {
       const items = await onScanPage();
-      setDetected(items);
+      setDetected(Array.isArray(items) ? items : []);
     } catch {
       setDetected([]);
     } finally {
@@ -46,6 +49,8 @@ export default function DownloadsModal({ visible, onClose, canScanPage, onScanPa
       setScanned(true);
     }
   };
+
+  const safeDetected = detected ?? [];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -77,13 +82,13 @@ export default function DownloadsModal({ visible, onClose, canScanPage, onScanPa
                 <span>{scanning ? 'Scanning page…' : 'Scan page for downloads'}</span>
               </button>
 
-              {scanned && detected.length === 0 && (
+              {scanned && safeDetected.length === 0 && (
                 <div className="downloads-empty-hint" style={{ color: colors.mutedForeground }}>
                   No downloadable media found on this page.
                 </div>
               )}
 
-              {detected.map((item) => (
+              {safeDetected.map((item) => (
                 <div key={item.url} className="downloads-detected-row" style={{ borderBottomColor: colors.border }}>
                   <div className="modal-favicon" style={{ background: colors.muted }}>
                     📄
@@ -93,13 +98,13 @@ export default function DownloadsModal({ visible, onClose, canScanPage, onScanPa
                       {filenameOf(item.url)}
                     </div>
                     <div className="modal-item-meta" style={{ color: colors.mutedForeground }}>
-                      {item.type.toUpperCase()}
+                      {(item.type || '').toUpperCase()}
                     </div>
                   </div>
                   <button
                     className="downloads-action-btn"
                     style={{ color: colors.primary }}
-                    onClick={() => startDownload(item.url)}
+                    onClick={() => startDownload?.(item.url)}
                   >
                     <Download size={18} strokeWidth={2.25} />
                   </button>
@@ -156,7 +161,7 @@ export default function DownloadsModal({ visible, onClose, canScanPage, onScanPa
                 <button
                   className="downloads-action-btn"
                   style={{ color: colors.mutedForeground }}
-                  onClick={() => removeDownload(d.id)}
+                  onClick={() => removeDownload?.(d.id)}
                 >
                   <Trash2 size={17} strokeWidth={2.25} />
                 </button>
