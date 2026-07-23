@@ -86,6 +86,7 @@ function BrowserHost() {
     setIsLoading,
     setPageTitle,
     addToHistory,
+    trackInPageUrl,
     recordDownloadCompleted,
     recordDownloadFailed,
     browserRef,
@@ -103,6 +104,7 @@ function BrowserHost() {
   const webviewIdRef = useRef<string | null>(null);
   const liveUrlRef = useRef<string>(HOME_URL);
   const isIncognitoRef = useRef(false);
+  const opChainRef = useRef<Promise<void>>(Promise.resolve());
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
   const anyModalOpen = showBookmarks || showHistory || showMore || showTabs || showDownloads;
@@ -154,12 +156,19 @@ function BrowserHost() {
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
   const topPad = isHome ? safeAreaTop() : urlBarHeight;
 
+  // Open / reposition / close the embedded webview. All open/close calls
+  // are chained through opChainRef so overlapping requests (e.g. a rapid
+  // hardware-back-triggered navigation) run strictly one after another
+  // instead of racing and leaving the native view closed with nothing
+  // reopened behind it.
   useEffect(() => {
     if (!isNative) return;
 
     let cancelled = false;
 
     async function openOrUpdate() {
+      if (cancelled) return;
+
       if (isHome) {
         if (webviewIdRef.current) {
           await InAppBrowser.close().catch(() => {});
@@ -188,12 +197,19 @@ function BrowserHost() {
         x: 0,
         y: yPx,
       } as any);
-      if (cancelled) return;
+
+      if (cancelled) {
+        // A newer navigation started while we were opening — don't leave
+        // this stale webview behind.
+        if (id) InAppBrowser.close().catch(() => {});
+        return;
+      }
       webviewIdRef.current = id ?? null;
       liveUrlRef.current = currentUrl;
     }
 
-    openOrUpdate();
+    opChainRef.current = opChainRef.current.then(openOrUpdate).catch(() => {});
+
     return () => {
       cancelled = true;
     };
@@ -241,6 +257,7 @@ function BrowserHost() {
         const url = event?.url;
         if (!url) return;
         liveUrlRef.current = url;
+        trackInPageUrl(url);
         try {
           const result = await InAppBrowser.executeScript({
             id: webviewIdRef.current ?? undefined,
