@@ -1,56 +1,31 @@
 import React, { useState } from 'react';
-import { Download, Trash2, Share2, RefreshCw, FileDown } from 'lucide-react';
+import { Trash2, Share2, ArrowDownToLine } from 'lucide-react';
 import { Share } from '@capacitor/share';
 import { useColors } from '../hooks/useColors';
 import { useBrowser } from '../context/BrowserContext';
 
-interface DetectedItem {
-  url: string;
-  type: string;
-}
-
 interface Props {
   visible: boolean;
   onClose: () => void;
-  canScanPage: boolean;
-  onScanPage: () => Promise<DetectedItem[]>;
 }
 
-function filenameOf(url: string): string {
-  try {
-    return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() || url);
-  } catch {
-    return url;
-  }
-}
-
-export default function DownloadsModal({ visible, onClose, canScanPage, onScanPage }: Props) {
+export default function DownloadsModal({ visible, onClose }: Props) {
   const colors = useColors();
   const browserCtx = useBrowser();
   const downloads = browserCtx.downloads ?? [];
   const startDownload = browserCtx.startDownload;
   const removeDownload = browserCtx.removeDownload;
-  const [scanning, setScanning] = useState(false);
-  const [detected, setDetected] = useState<DetectedItem[]>([]);
-  const [scanned, setScanned] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
 
   if (!visible) return null;
 
-  const handleScan = async () => {
-    setScanning(true);
-    setScanned(false);
-    try {
-      const items = await onScanPage();
-      setDetected(Array.isArray(items) ? items : []);
-    } catch {
-      setDetected([]);
-    } finally {
-      setScanning(false);
-      setScanned(true);
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    startDownload?.(trimmed);
+    setUrlInput('');
   };
-
-  const safeDetected = detected ?? [];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -65,54 +40,27 @@ export default function DownloadsModal({ visible, onClose, canScanPage, onScanPa
           </button>
         </div>
 
+        <form className="downloads-input-row" onSubmit={handleSubmit}>
+          <input
+            className="downloads-input"
+            style={{ background: colors.muted, color: colors.foreground }}
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="Paste a file link to download"
+            autoCapitalize="none"
+            autoCorrect="off"
+            inputMode="url"
+          />
+          <button type="submit" className="downloads-input-btn" style={{ color: colors.primary }}>
+            <ArrowDownToLine size={20} strokeWidth={2.25} />
+          </button>
+        </form>
+
+        <div className="downloads-hint" style={{ color: colors.mutedForeground }}>
+          Tapping a download link or button on any page saves it here automatically.
+        </div>
+
         <div className="modal-list">
-          {canScanPage && (
-            <div className="downloads-scan">
-              <button
-                className="downloads-scan-btn"
-                style={{ background: colors.muted, color: colors.foreground }}
-                onClick={handleScan}
-                disabled={scanning}
-              >
-                {scanning ? (
-                  <RefreshCw size={16} strokeWidth={2.25} className="downloads-spin" />
-                ) : (
-                  <FileDown size={16} strokeWidth={2.25} />
-                )}
-                <span>{scanning ? 'Scanning page…' : 'Scan page for downloads'}</span>
-              </button>
-
-              {scanned && safeDetected.length === 0 && (
-                <div className="downloads-empty-hint" style={{ color: colors.mutedForeground }}>
-                  No downloadable media found on this page.
-                </div>
-              )}
-
-              {safeDetected.map((item) => (
-                <div key={item.url} className="downloads-detected-row" style={{ borderBottomColor: colors.border }}>
-                  <div className="modal-favicon" style={{ background: colors.muted }}>
-                    📄
-                  </div>
-                  <div className="modal-info">
-                    <div className="modal-item-title" style={{ color: colors.foreground }}>
-                      {filenameOf(item.url)}
-                    </div>
-                    <div className="modal-item-meta" style={{ color: colors.mutedForeground }}>
-                      {(item.type || '').toUpperCase()}
-                    </div>
-                  </div>
-                  <button
-                    className="downloads-action-btn"
-                    style={{ color: colors.primary }}
-                    onClick={() => startDownload?.(item.url)}
-                  >
-                    <Download size={18} strokeWidth={2.25} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
           {downloads.length === 0 ? (
             <div className="modal-empty">
               <div className="modal-empty-icon">⬇️</div>
@@ -120,7 +68,7 @@ export default function DownloadsModal({ visible, onClose, canScanPage, onScanPa
                 No Downloads Yet
               </div>
               <div className="modal-empty-subtitle" style={{ color: colors.mutedForeground }}>
-                Scan a page above to find downloadable files.
+                Files you download while browsing will show up here.
               </div>
             </div>
           ) : (
