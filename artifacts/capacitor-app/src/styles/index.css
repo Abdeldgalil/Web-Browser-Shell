@@ -727,3 +727,27 @@ button {
   border-radius: 3px;
   transition: width 0.2s ease;
 }
+.downloads-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 4px;
+}
+.downloads-input {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+.downloads-input-btn {
+  padding: 8px;
+  display: flex;
+  align-items: center;
+}
+.downloads-hint {
+  font-size: 12px;
+  padding: 4px 16px 10px;
+  line-height: 1.4;
+}
