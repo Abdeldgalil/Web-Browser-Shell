@@ -7,6 +7,8 @@ import React, {
   useCallback,
 } from 'react';
 import { Preferences } from '@capacitor/preferences';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { FileTransfer } from '@capacitor/file-transfer';
 
 export const HOME_URL = 'app://home';
 
@@ -51,6 +53,16 @@ export interface Tab {
   incognito: boolean;
 }
 
+export interface DownloadItem {
+  id: string;
+  url: string;
+  filename: string;
+  status: 'queued' | 'downloading' | 'done' | 'error';
+  progress: number; // 0-100, or -1 if the server didn't report a size
+  path: string;
+  timestamp: number;
+}
+
 export interface EmbeddedBrowserHandle {
   reload: () => void;
   findInPage: (term: string) => void;
@@ -79,6 +91,11 @@ interface BrowserContextType {
   browserRef: React.MutableRefObject<EmbeddedBrowserHandle | null>;
   history: HistoryEntry[];
   bookmarks: Bookmark[];
+  downloads: DownloadItem[];
+  startDownload: (url: string, filenameHint?: string) => void;
+  removeDownload: (id: string) => void;
+  recordDownloadCompleted: (event: { fileName?: string; path?: string; localUrl?: string }) => void;
+  recordDownloadFailed: (event: { fileName?: string }) => void;
   navigate: (url: string) => void;
   goHome: () => void;
   newTab: (url?: string, incognito?: boolean) => void;
@@ -101,6 +118,7 @@ const BrowserContext = createContext<BrowserContextType | null>(null);
 
 const HISTORY_KEY = 'browser_history';
 const BOOKMARKS_KEY = 'browser_bookmarks';
+const DOWNLOADS_KEY = 'browser_downloads';
 
 export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
@@ -108,7 +126,9 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
+  const downloadBusyRef = useRef(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
   const currentUrl = activeTab?.url ?? HOME_URL;
@@ -123,6 +143,14 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
     Preferences.get({ key: BOOKMARKS_KEY }).then(({ value }) => {
       if (value) setBookmarks(JSON.parse(value));
+    });
+    Preferences.get({ key: DOWNLOADS_KEY }).then(({ value }) => {
+      if (!value) return;
+      const loaded: DownloadItem[] = JSON.parse(value);
+      const fixed = loaded.map((d) =>
+        d.status === 'downloading' || d.status === 'queued' ? { ...d, status: 'error' as const } : d
+      );
+      setDownloads(fixed);
     });
   }, []);
 
@@ -285,6 +313,131 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Populated automatically whenever the native WebView's own download
+  // handling (handleDownloads: true) finishes saving a file — this is the
+  // real, reliable path (matches how Chrome/real browsers work), not a
+  // DOM scan.
+  const recordDownloadCompleted = useCallback((event: { fileName?: string; path?: string; localUrl?: string }) => {
+    setDownloads((prev) => {
+      const entry: DownloadItem = {
+        id: makeId(),
+        url: '',
+        filename: event.fileName || 'download',
+        status: 'done',
+        progress: 100,
+        path: event.localUrl || event.path || '',
+        timestamp: Date.now(),
+      };
+      const next = [entry, ...prev];
+      Preferences.set({ key: DOWNLOADS_KEY, value: JSON.stringify(next) });
+      return next;
+    });
+  }, []);
+
+  const recordDownloadFailed = useCallback((event: { fileName?: string }) => {
+    setDownloads((prev) => {
+      const entry: DownloadItem = {
+        id: makeId(),
+        url: '',
+        filename: event.fileName || 'download',
+        status: 'error',
+        progress: 0,
+        path: '',
+        timestamp: Date.now(),
+      };
+      const next = [entry, ...prev];
+      Preferences.set({ key: DOWNLOADS_KEY, value: JSON.stringify(next) });
+      return next;
+    });
+  }, []);
+
+  // Manual "paste a link" download path — a plain native HTTP download via
+  // the official Filesystem + File Transfer plugins, saved into the app's
+  // own scoped storage (no permissions needed, Play Store compliant).
+  const startDownload = useCallback((url: string, filenameHint?: string) => {
+    let filename = filenameHint || '';
+    if (!filename) {
+      try {
+        const u = new URL(url);
+        const last = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || '');
+        filename = last || `download-${Date.now()}`;
+      } catch {
+        filename = `download-${Date.now()}`;
+      }
+    }
+    const entry: DownloadItem = {
+      id: makeId(),
+      url,
+      filename,
+      status: 'queued',
+      progress: 0,
+      path: '',
+      timestamp: Date.now(),
+    };
+    setDownloads((prev) => {
+      const next = [entry, ...prev];
+      Preferences.set({ key: DOWNLOADS_KEY, value: JSON.stringify(next) });
+      return next;
+    });
+  }, []);
+
+  const removeDownload = useCallback((id: string) => {
+    setDownloads((prev) => {
+      const entry = prev.find((d) => d.id === id);
+      if (entry?.path) {
+        Filesystem.deleteFile({ path: entry.path }).catch(() => {});
+      }
+      const next = prev.filter((d) => d.id !== id);
+      Preferences.set({ key: DOWNLOADS_KEY, value: JSON.stringify(next) });
+      return next;
+    });
+  }, []);
+
+  // Processes one queued (manually-entered) download at a time.
+  useEffect(() => {
+    if (downloadBusyRef.current) return;
+    const next = downloads.find((d) => d.status === 'queued');
+    if (!next) return;
+    downloadBusyRef.current = true;
+
+    let progressHandle: { remove: () => void } | null = null;
+
+    (async () => {
+      setDownloads((prev) => {
+        const upd = prev.map((d) => (d.id === next.id ? { ...d, status: 'downloading' as const } : d));
+        Preferences.set({ key: DOWNLOADS_KEY, value: JSON.stringify(upd) });
+        return upd;
+      });
+
+      try {
+        const fileInfo = await Filesystem.getUri({ directory: Directory.Documents, path: next.filename });
+        progressHandle = await FileTransfer.addListener('progress', (p: any) => {
+          const pct = p?.contentLength > 0 ? Math.round((p.bytes / p.contentLength) * 100) : -1;
+          setDownloads((prev) => prev.map((d) => (d.id === next.id ? { ...d, progress: pct } : d)));
+        });
+
+        await FileTransfer.downloadFile({ url: next.url, path: fileInfo.uri, progress: true } as any);
+
+        setDownloads((prev) => {
+          const upd = prev.map((d) =>
+            d.id === next.id ? { ...d, status: 'done' as const, progress: 100, path: fileInfo.uri } : d
+          );
+          Preferences.set({ key: DOWNLOADS_KEY, value: JSON.stringify(upd) });
+          return upd;
+        });
+      } catch {
+        setDownloads((prev) => {
+          const upd = prev.map((d) => (d.id === next.id ? { ...d, status: 'error' as const } : d));
+          Preferences.set({ key: DOWNLOADS_KEY, value: JSON.stringify(upd) });
+          return upd;
+        });
+      } finally {
+        progressHandle?.remove();
+        downloadBusyRef.current = false;
+      }
+    })();
+  }, [downloads]);
+
   const reload = useCallback(() => browserRef.current?.reload(), []);
   const findInPage = useCallback((term: string) => browserRef.current?.findInPage(term), []);
   const toggleDesktopSite = useCallback(() => browserRef.current?.toggleDesktopSite(), []);
@@ -305,6 +458,11 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         browserRef,
         history,
         bookmarks,
+        downloads,
+        startDownload,
+        removeDownload,
+        recordDownloadCompleted,
+        recordDownloadFailed,
         navigate,
         goHome,
         newTab,
