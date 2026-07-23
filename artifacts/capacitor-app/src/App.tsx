@@ -183,7 +183,6 @@ function BrowserHost() {
       const { id } = await InAppBrowser.openWebView({
         url: currentUrl,
         toolbarType: 'blank',
-        handleDownloads: true,
         width,
         height,
         x: 0,
