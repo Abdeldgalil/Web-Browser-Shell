@@ -58,7 +58,7 @@ export interface DownloadItem {
   url: string;
   filename: string;
   status: 'queued' | 'downloading' | 'done' | 'error';
-  progress: number; // 0-100, or -1 if the server didn't report a size
+  progress: number;
   path: string;
   timestamp: number;
 }
@@ -112,6 +112,7 @@ interface BrowserContextType {
   reload: () => void;
   findInPage: (term: string) => void;
   toggleDesktopSite: () => void;
+  trackInPageUrl: (url: string) => void;
 }
 
 const BrowserContext = createContext<BrowserContextType | null>(null);
@@ -176,6 +177,26 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
             stack: nextStack,
             index: nextStack.length - 1,
           };
+        })
+      );
+    },
+    [activeTabId]
+  );
+
+  // Called whenever the embedded webview reports it navigated somewhere on
+  // its own (link taps, redirects, form submits inside the page). Updates
+  // the back/forward bookkeeping ONLY — it deliberately does not touch
+  // `url` (the field the webview-open effect depends on), so recording an
+  // in-page navigation never causes the webview to be closed and reopened.
+  const trackInPageUrl = useCallback(
+    (url: string) => {
+      setTabs((prev) =>
+        prev.map((t) => {
+          if (t.id !== activeTabId) return t;
+          if (t.stack[t.index] === url) return t;
+          const truncated = t.stack.slice(0, t.index + 1);
+          const nextStack = [...truncated, url];
+          return { ...t, stack: nextStack, index: nextStack.length - 1 };
         })
       );
     },
@@ -313,10 +334,6 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Populated automatically whenever the native WebView's own download
-  // handling (handleDownloads: true) finishes saving a file — this is the
-  // real, reliable path (matches how Chrome/real browsers work), not a
-  // DOM scan.
   const recordDownloadCompleted = useCallback((event: { fileName?: string; path?: string; localUrl?: string }) => {
     setDownloads((prev) => {
       const entry: DownloadItem = {
@@ -351,9 +368,6 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Manual "paste a link" download path — a plain native HTTP download via
-  // the official Filesystem + File Transfer plugins, saved into the app's
-  // own scoped storage (no permissions needed, Play Store compliant).
   const startDownload = useCallback((url: string, filenameHint?: string) => {
     let filename = filenameHint || '';
     if (!filename) {
@@ -393,7 +407,6 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Processes one queued (manually-entered) download at a time.
   useEffect(() => {
     if (downloadBusyRef.current) return;
     const next = downloads.find((d) => d.status === 'queued');
@@ -479,6 +492,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         reload,
         findInPage,
         toggleDesktopSite,
+        trackInPageUrl,
       }}
     >
       {children}
