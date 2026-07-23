@@ -1,5 +1,5 @@
 import React from 'react';
-import { Share2, Search, Monitor, Check, Bookmark, Star, Clock, Languages } from 'lucide-react';
+import { Share2, Search, Monitor, Check, Bookmark, Star, Clock, Languages, Download } from 'lucide-react';
 import { useColors } from '../hooks/useColors';
 import { useBrowser } from '../context/BrowserContext';
 
@@ -12,6 +12,7 @@ interface Props {
   onTranslate: () => void;
   onOpenBookmarks: () => void;
   onOpenHistory: () => void;
+  onOpenDownloads: () => void;
   desktopMode: boolean;
   disabled: boolean;
 }
@@ -25,6 +26,7 @@ export default function MoreMenu({
   onTranslate,
   onOpenBookmarks,
   onOpenHistory,
+  onOpenDownloads,
   desktopMode,
   disabled,
 }: Props) {
@@ -71,6 +73,11 @@ export default function MoreMenu({
           <button className="more-menu-item" onClick={() => run(onOpenHistory)}>
             <Clock size={20} strokeWidth={2} color={colors.foreground} />
             <span style={{ color: colors.foreground }}>View History</span>
+          </button>
+
+          <button className="more-menu-item" onClick={() => run(onOpenDownloads)}>
+            <Download size={20} strokeWidth={2} color={colors.foreground} />
+            <span style={{ color: colors.foreground }}>Downloads</span>
           </button>
 
           <div className="more-menu-divider" style={{ background: colors.border }} />
