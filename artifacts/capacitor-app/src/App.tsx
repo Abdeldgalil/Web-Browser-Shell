@@ -156,11 +156,12 @@ function BrowserHost() {
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
   const topPad = isHome ? safeAreaTop() : urlBarHeight;
 
-  // Open / reposition / close the embedded webview. All open/close calls
-  // are chained through opChainRef so overlapping requests (e.g. a rapid
-  // hardware-back-triggered navigation) run strictly one after another
-  // instead of racing and leaving the native view closed with nothing
-  // reopened behind it.
+  // Open / update / close the embedded webview. All calls are chained
+  // through opChainRef so overlapping requests (e.g. rapid hardware-back
+  // navigations) run strictly one after another. Prefers setUrl() on an
+  // already-open webview instead of destroying and recreating it — far
+  // fewer moving parts, which avoids races that were leaving a blank
+  // screen behind on hardware back.
   useEffect(() => {
     if (!isNative) return;
 
@@ -184,8 +185,14 @@ function BrowserHost() {
       const yPx = urlBarHeight;
 
       if (webviewIdRef.current) {
-        await InAppBrowser.close().catch(() => {});
-        webviewIdRef.current = null;
+        try {
+          await (InAppBrowser as any).setUrl({ id: webviewIdRef.current, url: currentUrl });
+          if (!cancelled) liveUrlRef.current = currentUrl;
+          return;
+        } catch {
+          await InAppBrowser.close().catch(() => {});
+          webviewIdRef.current = null;
+        }
       }
       if (cancelled) return;
 
@@ -199,8 +206,6 @@ function BrowserHost() {
       } as any);
 
       if (cancelled) {
-        // A newer navigation started while we were opening — don't leave
-        // this stale webview behind.
         if (id) InAppBrowser.close().catch(() => {});
         return;
       }
