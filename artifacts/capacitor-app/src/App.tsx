@@ -105,6 +105,7 @@ function BrowserHost() {
   const liveUrlRef = useRef<string>(HOME_URL);
   const isIncognitoRef = useRef(false);
   const opChainRef = useRef<Promise<void>>(Promise.resolve());
+  const lastBackPressRef = useRef(0);
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
   const anyModalOpen = showBookmarks || showHistory || showMore || showTabs || showDownloads;
@@ -113,9 +114,17 @@ function BrowserHost() {
     isIncognitoRef.current = isIncognito;
   }, [isIncognito]);
 
+  // Debounced: Android sometimes dispatches the hardware back button event
+  // twice in quick succession for a single physical press (a known
+  // Capacitor/WebView quirk), which made back require two presses. Ignore
+  // any repeat firing within 400ms of the one we just handled.
   useEffect(() => {
     if (!isNative) return;
     const sub = CapacitorApp.addListener('backButton', () => {
+      const now = Date.now();
+      if (now - lastBackPressRef.current < 400) return;
+      lastBackPressRef.current = now;
+
       if (anyModalOpen) {
         setShowBookmarks(false);
         setShowHistory(false);
@@ -156,12 +165,6 @@ function BrowserHost() {
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
   const topPad = isHome ? safeAreaTop() : urlBarHeight;
 
-  // Open / update / close the embedded webview. All calls are chained
-  // through opChainRef so overlapping requests (e.g. rapid hardware-back
-  // navigations) run strictly one after another. Prefers setUrl() on an
-  // already-open webview instead of destroying and recreating it — far
-  // fewer moving parts, which avoids races that were leaving a blank
-  // screen behind on hardware back.
   useEffect(() => {
     if (!isNative) return;
 
