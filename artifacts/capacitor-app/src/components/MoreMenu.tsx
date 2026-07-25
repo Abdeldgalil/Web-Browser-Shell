@@ -1,5 +1,16 @@
 import React from 'react';
-import { Share2, Search, Monitor, Check, Bookmark, Star, Clock, Languages, Download } from 'lucide-react';
+import {
+  Share2,
+  Search,
+  Monitor,
+  Check,
+  Bookmark,
+  Star,
+  Clock,
+  Languages,
+  Download,
+  ShieldCheck,
+} from 'lucide-react';
 import { useColors } from '../hooks/useColors';
 import { useBrowser } from '../context/BrowserContext';
 
@@ -15,6 +26,8 @@ interface Props {
   onOpenDownloads: () => void;
   desktopMode: boolean;
   disabled: boolean;
+  adBlockEnabled: boolean;
+  onToggleAdBlock: () => void;
 }
 
 export default function MoreMenu({
@@ -29,6 +42,8 @@ export default function MoreMenu({
   onOpenDownloads,
   desktopMode,
   disabled,
+  adBlockEnabled,
+  onToggleAdBlock,
 }: Props) {
   const colors = useColors();
   const { currentUrl, pageTitle, toggleBookmark, isBookmarked } = useBrowser();
@@ -121,6 +136,12 @@ export default function MoreMenu({
             <Monitor size={20} strokeWidth={2} color={colors.foreground} />
             <span style={{ color: colors.foreground, flex: 1 }}>Request Desktop Site</span>
             {desktopMode && <Check size={18} strokeWidth={2.5} color={colors.primary} />}
+          </button>
+
+          <button className="more-menu-item" onClick={() => run(onToggleAdBlock)}>
+            <ShieldCheck size={20} strokeWidth={2} color={colors.foreground} />
+            <span style={{ color: colors.foreground, flex: 1 }}>Block Ads & Trackers</span>
+            {adBlockEnabled && <Check size={18} strokeWidth={2.5} color={colors.primary} />}
           </button>
         </div>
       </div>
