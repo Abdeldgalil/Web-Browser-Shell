@@ -10,6 +10,8 @@ import {
   Languages,
   Download,
   ShieldCheck,
+  Moon,
+  BookOpen,
 } from 'lucide-react';
 import { useColors } from '../hooks/useColors';
 import { useBrowser } from '../context/BrowserContext';
@@ -24,10 +26,13 @@ interface Props {
   onOpenBookmarks: () => void;
   onOpenHistory: () => void;
   onOpenDownloads: () => void;
+  onReaderMode: () => void;
   desktopMode: boolean;
   disabled: boolean;
   adBlockEnabled: boolean;
   onToggleAdBlock: () => void;
+  forceDarkEnabled: boolean;
+  onToggleForceDark: () => void;
 }
 
 export default function MoreMenu({
@@ -40,10 +45,13 @@ export default function MoreMenu({
   onOpenBookmarks,
   onOpenHistory,
   onOpenDownloads,
+  onReaderMode,
   desktopMode,
   disabled,
   adBlockEnabled,
   onToggleAdBlock,
+  forceDarkEnabled,
+  onToggleForceDark,
 }: Props) {
   const colors = useColors();
   const { currentUrl, pageTitle, toggleBookmark, isBookmarked } = useBrowser();
@@ -131,11 +139,27 @@ export default function MoreMenu({
             className="more-menu-item"
             style={{ opacity: disabled ? 0.4 : 1 }}
             disabled={disabled}
+            onClick={() => run(onReaderMode)}
+          >
+            <BookOpen size={20} strokeWidth={2} color={colors.foreground} />
+            <span style={{ color: colors.foreground }}>Reader Mode</span>
+          </button>
+
+          <button
+            className="more-menu-item"
+            style={{ opacity: disabled ? 0.4 : 1 }}
+            disabled={disabled}
             onClick={() => run(onToggleDesktop)}
           >
             <Monitor size={20} strokeWidth={2} color={colors.foreground} />
             <span style={{ color: colors.foreground, flex: 1 }}>Request Desktop Site</span>
             {desktopMode && <Check size={18} strokeWidth={2.5} color={colors.primary} />}
+          </button>
+
+          <button className="more-menu-item" onClick={() => run(onToggleForceDark)}>
+            <Moon size={20} strokeWidth={2} color={colors.foreground} />
+            <span style={{ color: colors.foreground, flex: 1 }}>Force Dark Mode</span>
+            {forceDarkEnabled && <Check size={18} strokeWidth={2.5} color={colors.primary} />}
           </button>
 
           <button className="more-menu-item" onClick={() => run(onToggleAdBlock)}>
