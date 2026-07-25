@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Lock, Globe, Search, X, VenetianMask } from 'lucide-react';
+import { Lock, Globe, Search, X, VenetianMask, ScanLine } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { useColors, useColorScheme } from '../hooks/useColors';
 import { useBrowser, normalizeUrl, getDisplayUrl, HOME_URL } from '../context/BrowserContext';
 
@@ -18,6 +20,7 @@ export default function UrlBar() {
   const isHome = currentUrl === HOME_URL;
   const displayUrl = getDisplayUrl(currentUrl);
   const isHttps = currentUrl.startsWith('https://');
+  const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
     if (focused) {
@@ -41,6 +44,22 @@ export default function UrlBar() {
     inputRef.current?.blur();
   };
 
+  const handleScanQr = async () => {
+    if (!isNative) return;
+    try {
+      const { camera } = await BarcodeScanner.requestPermissions();
+      if (camera !== 'granted' && camera !== 'limited') return;
+      const { barcodes } = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode] });
+      const value = barcodes[0]?.rawValue;
+      if (value) {
+        setFocused(false);
+        navigate(normalizeUrl(value));
+      }
+    } catch {
+      // user cancelled the scan or camera unavailable — do nothing
+    }
+  };
+
   const barBackground = isIncognito
     ? 'rgba(45,27,66,0.85)'
     : isDark
@@ -54,29 +73,41 @@ export default function UrlBar() {
     <div className="urlbar" style={{ background: barBackground, paddingBottom: URL_BAR_BOTTOM_PAD }}>
       <div className="urlbar-row">
         {!focused ? (
-          <button
-            className="urlbar-pill"
-            style={{ background: pillBackground, height: URL_BAR_CONTENT_HEIGHT }}
-            onClick={() => setFocused(true)}
-          >
-            <span className="urlbar-lock" style={{ color: mutedColor }}>
-              {isIncognito ? (
-                <span className="incognito-badge incognito-badge-sm">
-                  <VenetianMask size={11} strokeWidth={2.25} color="#fff" />
-                </span>
-              ) : isHome ? (
-                <Search size={13} strokeWidth={2.25} />
-              ) : isHttps ? (
-                <Lock size={13} strokeWidth={2.5} />
-              ) : (
-                <Globe size={13} strokeWidth={2.25} />
-              )}
-            </span>
-            <span className="urlbar-text" style={{ color: isHome ? mutedColor : textColor }}>
-              {isHome ? 'Search or enter address' : displayUrl}
-            </span>
-            {isLoading && <span className="urlbar-spinner" style={{ borderColor: mutedColor }} />}
-          </button>
+          <>
+            <button
+              className="urlbar-pill"
+              style={{ background: pillBackground, height: URL_BAR_CONTENT_HEIGHT }}
+              onClick={() => setFocused(true)}
+            >
+              <span className="urlbar-lock" style={{ color: mutedColor }}>
+                {isIncognito ? (
+                  <span className="incognito-badge incognito-badge-sm">
+                    <VenetianMask size={11} strokeWidth={2.25} color="#fff" />
+                  </span>
+                ) : isHome ? (
+                  <Search size={13} strokeWidth={2.25} />
+                ) : isHttps ? (
+                  <Lock size={13} strokeWidth={2.5} />
+                ) : (
+                  <Globe size={13} strokeWidth={2.25} />
+                )}
+              </span>
+              <span className="urlbar-text" style={{ color: isHome ? mutedColor : textColor }}>
+                {isHome ? 'Search or enter address' : displayUrl}
+              </span>
+              {isLoading && <span className="urlbar-spinner" style={{ borderColor: mutedColor }} />}
+            </button>
+            {isNative && (
+              <button
+                className="urlbar-qr-btn"
+                style={{ background: pillBackground, height: URL_BAR_CONTENT_HEIGHT, width: URL_BAR_CONTENT_HEIGHT }}
+                onClick={handleScanQr}
+                aria-label="Scan QR code"
+              >
+                <ScanLine size={17} strokeWidth={2.25} color={mutedColor} />
+              </button>
+            )}
+          </>
         ) : (
           <form className="urlbar-form" onSubmit={handleSubmit}>
             <div
@@ -98,6 +129,11 @@ export default function UrlBar() {
                 inputMode="url"
                 placeholder="Search or enter address"
               />
+              {isNative && (
+                <button type="button" className="urlbar-qr-inline" onClick={handleScanQr} style={{ color: mutedColor }}>
+                  <ScanLine size={16} strokeWidth={2.25} />
+                </button>
+              )}
               {inputValue.length > 0 && (
                 <button type="button" className="urlbar-clear" onClick={() => setInputValue('')} style={{ color: mutedColor }}>
                   <X size={15} strokeWidth={2.5} />
