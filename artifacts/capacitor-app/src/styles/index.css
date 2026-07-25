@@ -751,3 +751,16 @@ button {
   padding: 4px 16px 10px;
   line-height: 1.4;
 }
+.urlbar-qr-btn {
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.urlbar-qr-inline {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  flex-shrink: 0;
+}
