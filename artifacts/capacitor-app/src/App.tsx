@@ -33,36 +33,63 @@ const DESKTOP_VIEWPORT_SCRIPT = `
 })();
 `;
 
-// Common ad/tracker domains blocked at the native network layer via the
-// InAppBrowser's outboundProxyRules — cheap, effective, and doesn't touch
-// any native project files.
-const AD_BLOCK_DOMAINS = [
-  'doubleclick\\.net',
-  'googlesyndication\\.com',
-  'googleadservices\\.com',
-  'google-analytics\\.com',
-  'googletagmanager\\.com',
-  'adservice\\.google\\.',
-  'amazon-adsystem\\.com',
-  'taboola\\.com',
-  'outbrain\\.com',
-  'criteo\\.(com|net)',
-  'scorecardresearch\\.com',
-  'adnxs\\.com',
-  'moatads\\.com',
-  'pubmatic\\.com',
-  'rubiconproject\\.com',
-  'casalemedia\\.com',
-  'openx\\.net',
-  'media\\.net',
-  'adsrvr\\.org',
-  'quantserve\\.com',
-];
+const FORCE_DARK_APPLY_SCRIPT = `
+(function() {
+  if (document.getElementById('__force_dark_style')) return;
+  var style = document.createElement('style');
+  style.id = '__force_dark_style';
+  style.textContent = 'html{filter:invert(1) hue-rotate(180deg) !important;background:#fff !important;}' +
+    'img,picture,video,iframe,canvas,svg{filter:invert(1) hue-rotate(180deg) !important;}';
+  document.documentElement.appendChild(style);
+})();
+`;
 
-const AD_BLOCK_RULES = AD_BLOCK_DOMAINS.map((d) => ({
-  urlRegex: `^https?://([a-z0-9-]+\\.)*${d}.*`,
-  action: 'cancel' as const,
-}));
+const FORCE_DARK_REMOVE_SCRIPT = `
+(function() {
+  var s = document.getElementById('__force_dark_style');
+  if (s) s.remove();
+})();
+`;
+
+const READER_MODE_SCRIPT = `
+(function() {
+  try {
+    var selectors = ['article', '[role="main"]', 'main', '.post-content', '.article-content', '.entry-content', '#content'];
+    var root = null;
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (el && el.innerText && el.innerText.length > 200) { root = el; break; }
+    }
+    if (!root) {
+      var candidates = document.querySelectorAll('div, section');
+      var best = null, bestLen = 0;
+      candidates.forEach(function(el) {
+        var text = el.innerText || '';
+        if (text.length > bestLen && el.querySelectorAll('p').length > 2) {
+          bestLen = text.length;
+          best = el;
+        }
+      });
+      root = best || document.body;
+    }
+    var title = document.title || '';
+    var contentHtml = root.innerHTML;
+    var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var bg = isDark ? '#1c1c1e' : '#fdfdfd';
+    var fg = isDark ? '#f2f2f2' : '#1c1c1e';
+    document.documentElement.innerHTML =
+      '<head><meta name="viewport" content="width=device-width, initial-scale=1"><style>' +
+      'html,body{margin:0;padding:0;background:' + bg + ';color:' + fg + ';font-family:Georgia,serif;line-height:1.7;}' +
+      '.__reader-wrap{max-width:680px;margin:0 auto;padding:28px 20px 60px;}' +
+      '.__reader-wrap h1{font-size:26px;line-height:1.3;margin-bottom:18px;}' +
+      '.__reader-wrap img{max-width:100%;height:auto;border-radius:8px;}' +
+      '.__reader-wrap p{font-size:18px;margin:0 0 18px;}' +
+      '.__reader-wrap a{color:inherit;}' +
+      '.__reader-wrap iframe,.__reader-wrap script,.__reader-wrap style,.__reader-wrap noscript{display:none !important;}' +
+      '</style></head><body><div class="__reader-wrap"><h1>' + title.replace(/</g,'&lt;') + '</h1>' + contentHtml + '</div></body>';
+  } catch (e) {}
+})();
+`;
 
 function isTranslatedUrl(url: string): boolean {
   try {
@@ -94,6 +121,34 @@ function unwrapTranslatedUrl(url: string): string | null {
   }
 }
 
+const AD_BLOCK_DOMAINS = [
+  'doubleclick\\.net',
+  'googlesyndication\\.com',
+  'googleadservices\\.com',
+  'google-analytics\\.com',
+  'googletagmanager\\.com',
+  'adservice\\.google\\.',
+  'amazon-adsystem\\.com',
+  'taboola\\.com',
+  'outbrain\\.com',
+  'criteo\\.(com|net)',
+  'scorecardresearch\\.com',
+  'adnxs\\.com',
+  'moatads\\.com',
+  'pubmatic\\.com',
+  'rubiconproject\\.com',
+  'casalemedia\\.com',
+  'openx\\.net',
+  'media\\.net',
+  'adsrvr\\.org',
+  'quantserve\\.com',
+];
+
+const AD_BLOCK_RULES = AD_BLOCK_DOMAINS.map((d) => ({
+  urlRegex: `^https?://([a-z0-9-]+\\.)*${d}.*`,
+  action: 'cancel' as const,
+}));
+
 function BrowserHost() {
   const colors = useColors();
 
@@ -111,6 +166,8 @@ function BrowserHost() {
     isIncognito,
     adBlockEnabled,
     setAdBlockEnabled,
+    forceDarkEnabled,
+    setForceDarkEnabled,
     navigate,
     goHome,
     goBack,
@@ -137,6 +194,7 @@ function BrowserHost() {
   const webviewIdRef = useRef<string | null>(null);
   const liveUrlRef = useRef<string>(HOME_URL);
   const isIncognitoRef = useRef(false);
+  const forceDarkEnabledRef = useRef(false);
   const opChainRef = useRef<Promise<void>>(Promise.resolve());
   const lastBackPressRef = useRef(0);
   const isNative = Capacitor.isNativePlatform();
@@ -146,6 +204,10 @@ function BrowserHost() {
   useEffect(() => {
     isIncognitoRef.current = isIncognito;
   }, [isIncognito]);
+
+  useEffect(() => {
+    forceDarkEnabledRef.current = forceDarkEnabled;
+  }, [forceDarkEnabled]);
 
   useEffect(() => {
     if (!isNative) return;
@@ -308,7 +370,12 @@ function BrowserHost() {
           if (!isIncognitoRef.current) addToHistory(url, '');
         }
       }),
-      InAppBrowser.addListener('browserPageLoaded', () => setIsLoading(false)),
+      InAppBrowser.addListener('browserPageLoaded', () => {
+        setIsLoading(false);
+        if (forceDarkEnabledRef.current && webviewIdRef.current) {
+          InAppBrowser.executeScript({ id: webviewIdRef.current, code: FORCE_DARK_APPLY_SCRIPT } as any).catch(() => {});
+        }
+      }),
       InAppBrowser.addListener('pageLoadError', () => setIsLoading(false)),
       InAppBrowser.addListener('downloadCompleted', (event: any) => {
         recordDownloadCompleted(event);
@@ -334,6 +401,20 @@ function BrowserHost() {
   const handleToggleDesktop = () => {
     setDesktopMode((v) => !v);
     browserRef.current?.toggleDesktopSite();
+  };
+
+  const handleToggleForceDark = () => {
+    const next = !forceDarkEnabled;
+    setForceDarkEnabled(next);
+    if (webviewIdRef.current) {
+      const code = next ? FORCE_DARK_APPLY_SCRIPT : FORCE_DARK_REMOVE_SCRIPT;
+      InAppBrowser.executeScript({ id: webviewIdRef.current, code } as any).catch(() => {});
+    }
+  };
+
+  const handleReaderMode = () => {
+    if (isHome || !webviewIdRef.current) return;
+    InAppBrowser.executeScript({ id: webviewIdRef.current, code: READER_MODE_SCRIPT } as any).catch(() => {});
   };
 
   const handleTranslate = () => {
@@ -419,10 +500,13 @@ function BrowserHost() {
         onOpenBookmarks={() => setShowBookmarks(true)}
         onOpenHistory={() => setShowHistory(true)}
         onOpenDownloads={() => setShowDownloads(true)}
+        onReaderMode={handleReaderMode}
         desktopMode={desktopMode}
         disabled={isHome}
         adBlockEnabled={adBlockEnabled}
         onToggleAdBlock={() => setAdBlockEnabled(!adBlockEnabled)}
+        forceDarkEnabled={forceDarkEnabled}
+        onToggleForceDark={handleToggleForceDark}
       />
     </div>
   );
