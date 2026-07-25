@@ -84,6 +84,8 @@ interface BrowserContextType {
   pageTitle: string;
   setPageTitle: (t: string) => void;
   isIncognito: boolean;
+  adBlockEnabled: boolean;
+  setAdBlockEnabled: (v: boolean) => void;
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   canGoBack: boolean;
@@ -120,6 +122,7 @@ const BrowserContext = createContext<BrowserContextType | null>(null);
 const HISTORY_KEY = 'browser_history';
 const BOOKMARKS_KEY = 'browser_bookmarks';
 const DOWNLOADS_KEY = 'browser_downloads';
+const AD_BLOCK_KEY = 'ad_block_enabled';
 
 export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
@@ -128,6 +131,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
+  const [adBlockEnabled, setAdBlockEnabledState] = useState(true);
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
   const downloadBusyRef = useRef(false);
 
@@ -153,6 +157,14 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
       );
       setDownloads(fixed);
     });
+    Preferences.get({ key: AD_BLOCK_KEY }).then(({ value }) => {
+      if (value !== null) setAdBlockEnabledState(value === 'true');
+    });
+  }, []);
+
+  const setAdBlockEnabled = useCallback((v: boolean) => {
+    setAdBlockEnabledState(v);
+    Preferences.set({ key: AD_BLOCK_KEY, value: String(v) });
   }, []);
 
   const updateActiveTab = useCallback(
@@ -183,11 +195,6 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     [activeTabId]
   );
 
-  // Called whenever the embedded webview reports it navigated somewhere on
-  // its own (link taps, redirects, form submits inside the page). Updates
-  // the back/forward bookkeeping ONLY — it deliberately does not touch
-  // `url` (the field the webview-open effect depends on), so recording an
-  // in-page navigation never causes the webview to be closed and reopened.
   const trackInPageUrl = useCallback(
     (url: string) => {
       setTabs((prev) =>
@@ -464,6 +471,8 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         pageTitle,
         setPageTitle,
         isIncognito,
+        adBlockEnabled,
+        setAdBlockEnabled,
         isLoading,
         setIsLoading,
         canGoBack,
