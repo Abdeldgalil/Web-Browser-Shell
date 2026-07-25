@@ -86,6 +86,8 @@ interface BrowserContextType {
   isIncognito: boolean;
   adBlockEnabled: boolean;
   setAdBlockEnabled: (v: boolean) => void;
+  forceDarkEnabled: boolean;
+  setForceDarkEnabled: (v: boolean) => void;
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   canGoBack: boolean;
@@ -123,6 +125,7 @@ const HISTORY_KEY = 'browser_history';
 const BOOKMARKS_KEY = 'browser_bookmarks';
 const DOWNLOADS_KEY = 'browser_downloads';
 const AD_BLOCK_KEY = 'ad_block_enabled';
+const FORCE_DARK_KEY = 'force_dark_enabled';
 
 export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
@@ -132,6 +135,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [adBlockEnabled, setAdBlockEnabledState] = useState(true);
+  const [forceDarkEnabled, setForceDarkEnabledState] = useState(false);
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
   const downloadBusyRef = useRef(false);
 
@@ -160,11 +164,19 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     Preferences.get({ key: AD_BLOCK_KEY }).then(({ value }) => {
       if (value !== null) setAdBlockEnabledState(value === 'true');
     });
+    Preferences.get({ key: FORCE_DARK_KEY }).then(({ value }) => {
+      if (value !== null) setForceDarkEnabledState(value === 'true');
+    });
   }, []);
 
   const setAdBlockEnabled = useCallback((v: boolean) => {
     setAdBlockEnabledState(v);
     Preferences.set({ key: AD_BLOCK_KEY, value: String(v) });
+  }, []);
+
+  const setForceDarkEnabled = useCallback((v: boolean) => {
+    setForceDarkEnabledState(v);
+    Preferences.set({ key: FORCE_DARK_KEY, value: String(v) });
   }, []);
 
   const updateActiveTab = useCallback(
@@ -473,6 +485,8 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         isIncognito,
         adBlockEnabled,
         setAdBlockEnabled,
+        forceDarkEnabled,
+        setForceDarkEnabled,
         isLoading,
         setIsLoading,
         canGoBack,
