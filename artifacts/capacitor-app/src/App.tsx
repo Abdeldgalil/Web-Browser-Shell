@@ -1,12 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Share } from '@capacitor/share';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { InAppBrowser } from '@capgo/capacitor-inappbrowser';
+import { X } from 'lucide-react';
 import { useColors } from './hooks/useColors';
-import { BrowserProvider, useBrowser } from './context/BrowserContext';
+import { BrowserProvider, useBrowser, HOME_URL } from './context/BrowserContext';
 import UrlBar, { URL_BAR_CONTENT_HEIGHT, URL_BAR_BOTTOM_PAD } from './components/UrlBar';
 import Toolbar, { TOOLBAR_CONTENT_HEIGHT, TOOLBAR_TOP_PAD } from './components/Toolbar';
 import BookmarksModal from './components/BookmarksModal';
 import HistoryModal from './components/HistoryModal';
+import MoreMenu from './components/MoreMenu';
+import TabSwitcher from './components/TabSwitcher';
+import DownloadsModal from './components/DownloadsModal';
+import HomePage from './components/HomePage';
 
 function safeAreaTop(): number {
   const v = getComputedStyle(document.documentElement).getPropertyValue('--safe-top');
@@ -17,85 +25,237 @@ function safeAreaBottom(): number {
   return parseInt(v || '0', 10) || 0;
 }
 
-/**
- * Manages the embedded native WebView (via @capgo/capacitor-inappbrowser).
- * The plugin renders a real native WebView positioned/sized behind our
- * transparent HTML UI (toolbar + url bar), which is how content becomes
- * visible without hitting X-Frame-Options restrictions an <iframe> would.
- */
+const DESKTOP_VIEWPORT_SCRIPT = `
+(function() {
+  var m = document.querySelector('meta[name="viewport"]');
+  if (!m) { m = document.createElement('meta'); m.name = 'viewport'; document.head.appendChild(m); }
+  m.setAttribute('content', 'width=1280');
+})();
+`;
+
+// Common ad/tracker domains blocked at the native network layer via the
+// InAppBrowser's outboundProxyRules — cheap, effective, and doesn't touch
+// any native project files.
+const AD_BLOCK_DOMAINS = [
+  'doubleclick\\.net',
+  'googlesyndication\\.com',
+  'googleadservices\\.com',
+  'google-analytics\\.com',
+  'googletagmanager\\.com',
+  'adservice\\.google\\.',
+  'amazon-adsystem\\.com',
+  'taboola\\.com',
+  'outbrain\\.com',
+  'criteo\\.(com|net)',
+  'scorecardresearch\\.com',
+  'adnxs\\.com',
+  'moatads\\.com',
+  'pubmatic\\.com',
+  'rubiconproject\\.com',
+  'casalemedia\\.com',
+  'openx\\.net',
+  'media\\.net',
+  'adsrvr\\.org',
+  'quantserve\\.com',
+];
+
+const AD_BLOCK_RULES = AD_BLOCK_DOMAINS.map((d) => ({
+  urlRegex: `^https?://([a-z0-9-]+\\.)*${d}.*`,
+  action: 'cancel' as const,
+}));
+
+function isTranslatedUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.endsWith('.translate.goog');
+  } catch {
+    return false;
+  }
+}
+
+function buildTranslateUrl(original: string): string {
+  const u = new URL(original);
+  const host = u.hostname.replace(/\./g, '-') + '.translate.goog';
+  const path = u.pathname + u.search;
+  const sep = path.includes('?') ? '&' : '?';
+  return `https://${host}${path}${sep}_x_tr_sl=auto&_x_tr_tl=ar&_x_tr_hl=en&_x_tr_pto=wapp`;
+}
+
+function unwrapTranslatedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.endsWith('.translate.goog')) return null;
+    const originalHost = u.hostname.slice(0, -'.translate.goog'.length).replace(/-/g, '.');
+    const params = new URLSearchParams(u.search);
+    ['_x_tr_sl', '_x_tr_tl', '_x_tr_hl', '_x_tr_pto'].forEach((k) => params.delete(k));
+    const qs = params.toString();
+    return `https://${originalHost}${u.pathname}${qs ? '?' + qs : ''}`;
+  } catch {
+    return null;
+  }
+}
+
 function BrowserHost() {
   const colors = useColors();
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+    StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+  }, []);
+
   const {
     currentUrl,
+    activeTabId,
+    tabs,
+    pageTitle,
+    isIncognito,
+    adBlockEnabled,
+    setAdBlockEnabled,
+    navigate,
+    goHome,
+    goBack,
+    goForward,
+    canGoBack,
     setIsLoading,
-    setCanGoBack,
-    setCanGoForward,
     setPageTitle,
     addToHistory,
+    trackInPageUrl,
+    recordDownloadCompleted,
+    recordDownloadFailed,
     browserRef,
+    closeTab,
   } = useBrowser();
 
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [showTabs, setShowTabs] = useState(false);
+  const [showDownloads, setShowDownloads] = useState(false);
+  const [showFindBar, setShowFindBar] = useState(false);
+  const [findTerm, setFindTerm] = useState('');
+  const [desktopMode, setDesktopMode] = useState(false);
   const webviewIdRef = useRef<string | null>(null);
+  const liveUrlRef = useRef<string>(HOME_URL);
+  const isIncognitoRef = useRef(false);
+  const opChainRef = useRef<Promise<void>>(Promise.resolve());
+  const lastBackPressRef = useRef(0);
   const isNative = Capacitor.isNativePlatform();
+  const isHome = currentUrl === HOME_URL;
+  const anyModalOpen = showBookmarks || showHistory || showMore || showTabs || showDownloads;
+
+  useEffect(() => {
+    isIncognitoRef.current = isIncognito;
+  }, [isIncognito]);
+
+  useEffect(() => {
+    if (!isNative) return;
+    const sub = CapacitorApp.addListener('backButton', () => {
+      const now = Date.now();
+      if (now - lastBackPressRef.current < 400) return;
+      lastBackPressRef.current = now;
+
+      if (anyModalOpen) {
+        setShowBookmarks(false);
+        setShowHistory(false);
+        setShowMore(false);
+        setShowTabs(false);
+        setShowDownloads(false);
+        return;
+      }
+      if (showFindBar) {
+        setShowFindBar(false);
+        return;
+      }
+      if (canGoBack) {
+        goBack();
+      } else if (!isHome) {
+        goHome();
+      } else if (tabs.length > 1) {
+        closeTab(activeTabId);
+      } else {
+        CapacitorApp.exitApp();
+      }
+    });
+    return () => {
+      sub.then((h) => h.remove());
+    };
+  }, [isNative, anyModalOpen, showFindBar, canGoBack, goBack, isHome, goHome, tabs.length, activeTabId, closeTab]);
+
+  useEffect(() => {
+    if (!isNative || !webviewIdRef.current) return;
+    if (anyModalOpen) {
+      (InAppBrowser as any).hide({ id: webviewIdRef.current }).catch(() => {});
+    } else {
+      (InAppBrowser as any).show({ id: webviewIdRef.current }).catch(() => {});
+    }
+  }, [anyModalOpen, isNative]);
 
   const urlBarHeight = safeAreaTop() + URL_BAR_CONTENT_HEIGHT + URL_BAR_BOTTOM_PAD;
   const toolbarHeight = safeAreaBottom() + TOOLBAR_TOP_PAD + TOOLBAR_CONTENT_HEIGHT;
+  const topPad = isHome ? safeAreaTop() : urlBarHeight;
 
-  // Open / reposition the embedded webview.
   useEffect(() => {
     if (!isNative) return;
 
     let cancelled = false;
 
     async function openOrUpdate() {
+      if (cancelled) return;
+
+      if (isHome) {
+        if (webviewIdRef.current) {
+          await InAppBrowser.close().catch(() => {});
+          webviewIdRef.current = null;
+        }
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       const width = window.innerWidth;
       const height = window.innerHeight - urlBarHeight - toolbarHeight;
+      const yPx = urlBarHeight;
 
-      if (!webviewIdRef.current) {
-        const { id } = await InAppBrowser.openWebView({
-          url: currentUrl,
-          toBack: true,
-          transparentBackground: true,
-          width,
-          height,
-          x: 0,
-          y: urlBarHeight,
-        } as any);
-        if (cancelled) return;
-        webviewIdRef.current = id ?? null;
-      } else {
+      if (webviewIdRef.current) {
         try {
           await (InAppBrowser as any).setUrl({ id: webviewIdRef.current, url: currentUrl });
+          if (!cancelled) liveUrlRef.current = currentUrl;
+          return;
         } catch {
-          // Fallback: some plugin versions don't expose setUrl — recreate the view.
-          await InAppBrowser.close();
-          const { id } = await InAppBrowser.openWebView({
-            url: currentUrl,
-            toBack: true,
-            transparentBackground: true,
-            width,
-            height,
-            x: 0,
-            y: urlBarHeight,
-          } as any);
-          webviewIdRef.current = id ?? null;
+          await InAppBrowser.close().catch(() => {});
+          webviewIdRef.current = null;
         }
       }
+      if (cancelled) return;
+
+      const { id } = await InAppBrowser.openWebView({
+        url: currentUrl,
+        toolbarType: 'blank',
+        width,
+        height,
+        x: 0,
+        y: yPx,
+        ...(adBlockEnabled ? { outboundProxyRules: AD_BLOCK_RULES } : {}),
+      } as any);
+
+      if (cancelled) {
+        if (id) InAppBrowser.close().catch(() => {});
+        return;
+      }
+      webviewIdRef.current = id ?? null;
+      liveUrlRef.current = currentUrl;
     }
 
-    openOrUpdate();
+    opChainRef.current = opChainRef.current.then(openOrUpdate).catch(() => {});
+
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUrl, isNative]);
+  }, [currentUrl, isNative, isHome, activeTabId, adBlockEnabled]);
 
-  // Keep the native webview's size/position in sync with the toolbar/url bar.
   useEffect(() => {
-    if (!isNative) return;
+    if (!isNative || isHome) return;
     const resize = () => {
       if (!webviewIdRef.current) return;
       InAppBrowser.updateDimensions({
@@ -108,46 +268,34 @@ function BrowserHost() {
     };
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
-  }, [isNative, urlBarHeight, toolbarHeight]);
+  }, [isNative, isHome, urlBarHeight, toolbarHeight]);
 
-  // Wire the goBack/goForward/reload controls used by the Toolbar.
   useEffect(() => {
     browserRef.current = {
-      goBack: () => {
-        if (!webviewIdRef.current) return;
-        InAppBrowser.executeScript({
-          id: webviewIdRef.current,
-          code: 'history.back();',
-        } as any).catch(() => {});
-      },
-      goForward: () => {
-        if (!webviewIdRef.current) return;
-        InAppBrowser.executeScript({
-          id: webviewIdRef.current,
-          code: 'history.forward();',
-        } as any).catch(() => {});
-      },
       reload: () => {
         if (!webviewIdRef.current) return;
-        InAppBrowser.executeScript({
-          id: webviewIdRef.current,
-          code: 'location.reload();',
-        } as any).catch(() => {});
+        InAppBrowser.executeScript({ id: webviewIdRef.current, code: 'location.reload();' } as any).catch(() => {});
+      },
+      findInPage: (term: string) => {
+        if (!webviewIdRef.current || !term) return;
+        const code = `try { window.find(${JSON.stringify(term)}, false, false, true); } catch (e) {}`;
+        InAppBrowser.executeScript({ id: webviewIdRef.current, code } as any).catch(() => {});
+      },
+      toggleDesktopSite: () => {
+        if (!webviewIdRef.current) return;
+        InAppBrowser.executeScript({ id: webviewIdRef.current, code: DESKTOP_VIEWPORT_SCRIPT } as any).catch(() => {});
       },
     };
-    // Back/forward availability isn't reported by this plugin's public API,
-    // so both controls stay enabled and simply no-op at the ends of history.
-    setCanGoBack(true);
-    setCanGoForward(true);
-  }, [browserRef, setCanGoBack, setCanGoForward]);
+  }, [browserRef]);
 
-  // Listen for in-page navigation (link taps, redirects, form submits).
   useEffect(() => {
     if (!isNative) return;
     const subs = [
       InAppBrowser.addListener('urlChangeEvent', async (event: any) => {
         const url = event?.url;
         if (!url) return;
+        liveUrlRef.current = url;
+        trackInPageUrl(url);
         try {
           const result = await InAppBrowser.executeScript({
             id: webviewIdRef.current ?? undefined,
@@ -155,13 +303,19 @@ function BrowserHost() {
           } as any);
           const title = (result as any)?.result ?? '';
           setPageTitle(title);
-          addToHistory(url, title);
+          if (!isIncognitoRef.current) addToHistory(url, title);
         } catch {
-          addToHistory(url, '');
+          if (!isIncognitoRef.current) addToHistory(url, '');
         }
       }),
       InAppBrowser.addListener('browserPageLoaded', () => setIsLoading(false)),
       InAppBrowser.addListener('pageLoadError', () => setIsLoading(false)),
+      InAppBrowser.addListener('downloadCompleted', (event: any) => {
+        recordDownloadCompleted(event);
+      }),
+      InAppBrowser.addListener('downloadFailed', (event: any) => {
+        recordDownloadFailed(event);
+      }),
     ];
     return () => {
       subs.forEach((p) => p.then((h) => h.remove()));
@@ -169,31 +323,107 @@ function BrowserHost() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNative]);
 
-  return (
-    <div className="app-root" style={{ background: colors.background }}>
-      <UrlBar />
+  const handleShare = async () => {
+    try {
+      await Share.share({ title: pageTitle || undefined, url: currentUrl });
+    } catch {
+      // user cancelled or share unavailable
+    }
+  };
 
-      <div className="web-area" style={{ paddingTop: urlBarHeight, paddingBottom: toolbarHeight }}>
-        {!isNative && (
-          <div className="dev-fallback" style={{ background: colors.card, borderColor: colors.border }}>
-            <div className="dev-fallback-icon">🌐</div>
-            <div className="dev-fallback-title" style={{ color: colors.foreground }}>
-              Run inside the Android app to browse
+  const handleToggleDesktop = () => {
+    setDesktopMode((v) => !v);
+    browserRef.current?.toggleDesktopSite();
+  };
+
+  const handleTranslate = () => {
+    if (isHome) return;
+    const liveUrl = liveUrlRef.current;
+
+    if (isTranslatedUrl(liveUrl)) {
+      const original = unwrapTranslatedUrl(liveUrl);
+      if (original) navigate(original);
+      return;
+    }
+
+    navigate(buildTranslateUrl(liveUrl));
+  };
+
+  const submitFind = (e: React.FormEvent) => {
+    e.preventDefault();
+    browserRef.current?.findInPage(findTerm);
+  };
+
+  return (
+    <div className="app-root">
+      {!isHome && <UrlBar />}
+
+      {showFindBar && !isHome && (
+        <div className="findbar" style={{ top: urlBarHeight, background: colors.card, borderColor: colors.border }}>
+          <form onSubmit={submitFind} className="findbar-form">
+            <input
+              className="findbar-input"
+              style={{ color: colors.foreground }}
+              autoFocus
+              value={findTerm}
+              onChange={(e) => setFindTerm(e.target.value)}
+              placeholder="Find in page"
+            />
+          </form>
+          <button
+            className="findbar-close"
+            onClick={() => {
+              setShowFindBar(false);
+              setFindTerm('');
+            }}
+          >
+            <X size={18} strokeWidth={2.25} color={colors.mutedForeground} />
+          </button>
+        </div>
+      )}
+
+      <div className="web-area" style={{ paddingTop: topPad, paddingBottom: toolbarHeight }}>
+        {isHome ? (
+          <HomePage />
+        ) : (
+          !isNative && (
+            <div className="dev-fallback" style={{ background: colors.card, borderColor: colors.border }}>
+              <div className="dev-fallback-icon">🌐</div>
+              <div className="dev-fallback-title" style={{ color: colors.foreground }}>
+                Run inside the Android app to browse
+              </div>
+              <div className="dev-fallback-body" style={{ color: colors.mutedForeground }}>
+                The embedded page renders through a native WebView (via
+                @capgo/capacitor-inappbrowser), which isn't available in this
+                browser preview. Build and run on a device/emulator to see{' '}
+                {currentUrl}.
+              </div>
             </div>
-            <div className="dev-fallback-body" style={{ color: colors.mutedForeground }}>
-              The embedded page renders through a native WebView (via
-              @capgo/capacitor-inappbrowser), which isn't available in this
-              browser preview. Build and run on a device/emulator to see{' '}
-              {currentUrl}.
-            </div>
-          </div>
+          )
         )}
       </div>
 
-      <Toolbar onOpenBookmarks={() => setShowBookmarks(true)} onOpenHistory={() => setShowHistory(true)} />
+      <Toolbar onOpenTabs={() => setShowTabs(true)} onOpenMore={() => setShowMore(true)} />
 
       <BookmarksModal visible={showBookmarks} onClose={() => setShowBookmarks(false)} />
       <HistoryModal visible={showHistory} onClose={() => setShowHistory(false)} />
+      <TabSwitcher visible={showTabs} onClose={() => setShowTabs(false)} />
+      <DownloadsModal visible={showDownloads} onClose={() => setShowDownloads(false)} />
+      <MoreMenu
+        visible={showMore}
+        onClose={() => setShowMore(false)}
+        onShare={handleShare}
+        onFindInPage={() => setShowFindBar(true)}
+        onToggleDesktop={handleToggleDesktop}
+        onTranslate={handleTranslate}
+        onOpenBookmarks={() => setShowBookmarks(true)}
+        onOpenHistory={() => setShowHistory(true)}
+        onOpenDownloads={() => setShowDownloads(true)}
+        desktopMode={desktopMode}
+        disabled={isHome}
+        adBlockEnabled={adBlockEnabled}
+        onToggleAdBlock={() => setAdBlockEnabled(!adBlockEnabled)}
+      />
     </div>
   );
 }

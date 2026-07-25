@@ -1,25 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Lock, Globe, Search, X, VenetianMask } from 'lucide-react';
 import { useColors, useColorScheme } from '../hooks/useColors';
-import { useBrowser, normalizeUrl, getDisplayUrl } from '../context/BrowserContext';
+import { useBrowser, normalizeUrl, getDisplayUrl, HOME_URL } from '../context/BrowserContext';
 
-export const URL_BAR_CONTENT_HEIGHT = 38;
+export const URL_BAR_CONTENT_HEIGHT = 40;
 export const URL_BAR_BOTTOM_PAD = 10;
 
 export default function UrlBar() {
   const colors = useColors();
   const isDark = useColorScheme() === 'dark';
-  const { currentUrl, navigate, isLoading } = useBrowser();
+  const { currentUrl, navigate, isLoading, isIncognito } = useBrowser();
 
   const [focused, setFocused] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isHome = currentUrl === HOME_URL;
   const displayUrl = getDisplayUrl(currentUrl);
   const isHttps = currentUrl.startsWith('https://');
 
   useEffect(() => {
     if (focused) {
-      setInputValue(currentUrl);
+      setInputValue(isHome ? '' : currentUrl);
       const t = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(t);
     }
@@ -39,40 +41,53 @@ export default function UrlBar() {
     inputRef.current?.blur();
   };
 
+  const barBackground = isIncognito
+    ? 'rgba(45,27,66,0.85)'
+    : isDark
+    ? 'rgba(28,28,30,0.72)'
+    : 'rgba(248,248,250,0.72)';
+  const pillBackground = isIncognito ? 'rgba(255,255,255,0.12)' : colors.urlBar;
+  const textColor = isIncognito ? '#fff' : colors.foreground;
+  const mutedColor = isIncognito ? 'rgba(255,255,255,0.6)' : colors.mutedForeground;
+
   return (
-    <div
-      className="urlbar"
-      style={{
-        background: isDark ? 'rgba(28,28,30,0.85)' : 'rgba(242,242,247,0.85)',
-        paddingBottom: URL_BAR_BOTTOM_PAD,
-      }}
-    >
+    <div className="urlbar" style={{ background: barBackground, paddingBottom: URL_BAR_BOTTOM_PAD }}>
       <div className="urlbar-row">
         {!focused ? (
           <button
             className="urlbar-pill"
-            style={{ background: colors.urlBar, height: URL_BAR_CONTENT_HEIGHT }}
+            style={{ background: pillBackground, height: URL_BAR_CONTENT_HEIGHT }}
             onClick={() => setFocused(true)}
           >
-            <span className="urlbar-lock">
-              {isHttps ? '🔒' : '🌐'}
+            <span className="urlbar-lock" style={{ color: mutedColor }}>
+              {isIncognito ? (
+                <span className="incognito-badge incognito-badge-sm">
+                  <VenetianMask size={11} strokeWidth={2.25} color="#fff" />
+                </span>
+              ) : isHome ? (
+                <Search size={13} strokeWidth={2.25} />
+              ) : isHttps ? (
+                <Lock size={13} strokeWidth={2.5} />
+              ) : (
+                <Globe size={13} strokeWidth={2.25} />
+              )}
             </span>
-            <span className="urlbar-text" style={{ color: colors.foreground }}>
-              {displayUrl}
+            <span className="urlbar-text" style={{ color: isHome ? mutedColor : textColor }}>
+              {isHome ? 'Search or enter address' : displayUrl}
             </span>
-            {isLoading && <span className="urlbar-spinner" />}
+            {isLoading && <span className="urlbar-spinner" style={{ borderColor: mutedColor }} />}
           </button>
         ) : (
           <form className="urlbar-form" onSubmit={handleSubmit}>
             <div
               className="urlbar-input-container"
-              style={{ background: colors.urlBar, height: URL_BAR_CONTENT_HEIGHT }}
+              style={{ background: pillBackground, height: URL_BAR_CONTENT_HEIGHT }}
             >
-              <span className="urlbar-search-icon">🔍</span>
+              <Search size={15} strokeWidth={2.25} color={mutedColor} />
               <input
                 ref={inputRef}
                 className="urlbar-input"
-                style={{ color: colors.foreground }}
+                style={{ color: textColor }}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onBlur={() => {
@@ -84,21 +99,12 @@ export default function UrlBar() {
                 placeholder="Search or enter address"
               />
               {inputValue.length > 0 && (
-                <button
-                  type="button"
-                  className="urlbar-clear"
-                  onClick={() => setInputValue('')}
-                >
-                  ✕
+                <button type="button" className="urlbar-clear" onClick={() => setInputValue('')} style={{ color: mutedColor }}>
+                  <X size={15} strokeWidth={2.5} />
                 </button>
               )}
             </div>
-            <button
-              type="button"
-              className="urlbar-cancel"
-              style={{ color: colors.primary }}
-              onClick={handleCancel}
-            >
+            <button type="button" className="urlbar-cancel" style={{ color: colors.primary }} onClick={handleCancel}>
               Cancel
             </button>
           </form>

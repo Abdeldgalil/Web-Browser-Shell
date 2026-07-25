@@ -2,16 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <style>
-      :root {
-        --safe-top: env(safe-area-inset-top, 0px);
-        --safe-bottom: env(safe-area-inset-bottom, 0px);
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"
+    />
+    <meta name="theme-color" content="#000000" />
+    <title>Web Browser Shell</title>
+    <script>
+      window.addEventListener('error', function (e) {
+        showError(e.message + '\n' + (e.error && e.error.stack ? e.error.stack : ''));
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        showError('Promise rejection: ' + (e.reason && e.reason.stack ? e.reason.stack : e.reason));
+      });
+      function showError(msg) {
+        var el = document.getElementById('error-box');
+        if (!el) {
+          el = document.createElement('pre');
+          el.id = 'error-box';
+          el.style.cssText =
+            'position:fixed;top:0;left:0;right:0;z-index:999999;background:#b00020;color:#fff;padding:16px;font-size:12px;white-space:pre-wrap;overflow:auto;max-height:100vh;margin:0;';
+          document.body.appendChild(el);
+        }
+        el.textContent += '\n\n' + msg;
       }
-    </style>
-    <title>Browser</title>
+    </script>
   </head>
   <body>
     <div id="root"></div>
