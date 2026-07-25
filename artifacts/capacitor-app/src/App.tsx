@@ -33,6 +33,37 @@ const DESKTOP_VIEWPORT_SCRIPT = `
 })();
 `;
 
+// Common ad/tracker domains blocked at the native network layer via the
+// InAppBrowser's outboundProxyRules — cheap, effective, and doesn't touch
+// any native project files.
+const AD_BLOCK_DOMAINS = [
+  'doubleclick\\.net',
+  'googlesyndication\\.com',
+  'googleadservices\\.com',
+  'google-analytics\\.com',
+  'googletagmanager\\.com',
+  'adservice\\.google\\.',
+  'amazon-adsystem\\.com',
+  'taboola\\.com',
+  'outbrain\\.com',
+  'criteo\\.(com|net)',
+  'scorecardresearch\\.com',
+  'adnxs\\.com',
+  'moatads\\.com',
+  'pubmatic\\.com',
+  'rubiconproject\\.com',
+  'casalemedia\\.com',
+  'openx\\.net',
+  'media\\.net',
+  'adsrvr\\.org',
+  'quantserve\\.com',
+];
+
+const AD_BLOCK_RULES = AD_BLOCK_DOMAINS.map((d) => ({
+  urlRegex: `^https?://([a-z0-9-]+\\.)*${d}.*`,
+  action: 'cancel' as const,
+}));
+
 function isTranslatedUrl(url: string): boolean {
   try {
     return new URL(url).hostname.endsWith('.translate.goog');
@@ -78,6 +109,8 @@ function BrowserHost() {
     tabs,
     pageTitle,
     isIncognito,
+    adBlockEnabled,
+    setAdBlockEnabled,
     navigate,
     goHome,
     goBack,
@@ -114,10 +147,6 @@ function BrowserHost() {
     isIncognitoRef.current = isIncognito;
   }, [isIncognito]);
 
-  // Debounced: Android sometimes dispatches the hardware back button event
-  // twice in quick succession for a single physical press (a known
-  // Capacitor/WebView quirk), which made back require two presses. Ignore
-  // any repeat firing within 400ms of the one we just handled.
   useEffect(() => {
     if (!isNative) return;
     const sub = CapacitorApp.addListener('backButton', () => {
@@ -206,6 +235,7 @@ function BrowserHost() {
         height,
         x: 0,
         y: yPx,
+        ...(adBlockEnabled ? { outboundProxyRules: AD_BLOCK_RULES } : {}),
       } as any);
 
       if (cancelled) {
@@ -222,7 +252,7 @@ function BrowserHost() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUrl, isNative, isHome, activeTabId]);
+  }, [currentUrl, isNative, isHome, activeTabId, adBlockEnabled]);
 
   useEffect(() => {
     if (!isNative || isHome) return;
@@ -391,6 +421,8 @@ function BrowserHost() {
         onOpenDownloads={() => setShowDownloads(true)}
         desktopMode={desktopMode}
         disabled={isHome}
+        adBlockEnabled={adBlockEnabled}
+        onToggleAdBlock={() => setAdBlockEnabled(!adBlockEnabled)}
       />
     </div>
   );
