@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Youtube, Facebook, Twitter, Instagram, Newspaper } from 'lucide-react';
+import { Search, Youtube, Facebook, Twitter, Instagram, Newspaper, ScanLine } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { useColors } from '../hooks/useColors';
 import { useBrowser, normalizeUrl } from '../context/BrowserContext';
 
@@ -18,7 +20,6 @@ interface NewsItem {
   image?: string;
 }
 
-// A new random photo each time the home page mounts (changes per app open / navigation back home).
 function getBackgroundUrl(): string {
   const seed = Math.floor(Math.random() * 1000);
   return `https://picsum.photos/seed/${seed}/800/1600`;
@@ -32,6 +33,7 @@ export default function HomePage() {
   const [newsError, setNewsError] = useState(false);
   const [bgUrl] = useState(getBackgroundUrl);
   const [bgLoaded, setBgLoaded] = useState(false);
+  const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
     const feedUrl = encodeURIComponent('https://feeds.bbci.co.uk/news/world/rss.xml');
@@ -59,6 +61,19 @@ export default function HomePage() {
     navigate(normalizeUrl(value));
   };
 
+  const handleScanQr = async () => {
+    if (!isNative) return;
+    try {
+      const { camera } = await BarcodeScanner.requestPermissions();
+      if (camera !== 'granted' && camera !== 'limited') return;
+      const { barcodes } = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode] });
+      const result = barcodes[0]?.rawValue;
+      if (result) navigate(normalizeUrl(result));
+    } catch {
+      // user cancelled the scan or camera unavailable — do nothing
+    }
+  };
+
   return (
     <div className="home-page">
       <img
@@ -78,17 +93,29 @@ export default function HomePage() {
           <div className="home-title">Web Browser Shell</div>
 
           <form className="home-search-form" onSubmit={handleSubmit}>
-            <div className="home-search-container">
-              <Search size={16} strokeWidth={2.25} color="rgba(255,255,255,0.7)" />
-              <input
-                className="home-search-input"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                autoCapitalize="none"
-                autoCorrect="off"
-                inputMode="url"
-                placeholder="Search Google or enter address"
-              />
+            <div className="home-search-row">
+              <div className="home-search-container">
+                <Search size={16} strokeWidth={2.25} color="rgba(255,255,255,0.7)" />
+                <input
+                  className="home-search-input"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  inputMode="url"
+                  placeholder="Search Google or enter address"
+                />
+              </div>
+              {isNative && (
+                <button
+                  type="button"
+                  className="home-qr-btn"
+                  onClick={handleScanQr}
+                  aria-label="Scan QR code"
+                >
+                  <ScanLine size={19} strokeWidth={2.25} color="#fff" />
+                </button>
+              )}
             </div>
           </form>
         </div>
