@@ -63,6 +63,22 @@ export interface DownloadItem {
   timestamp: number;
 }
 
+export interface Shortcut {
+  id: string;
+  name: string;
+  url: string;
+  iconKey: string;
+}
+
+const DEFAULT_SHORTCUTS: Shortcut[] = [
+  { id: 'yt', name: 'YouTube', url: 'https://www.youtube.com', iconKey: 'youtube' },
+  { id: 'fb', name: 'Facebook', url: 'https://www.facebook.com', iconKey: 'facebook' },
+  { id: 'tw', name: 'Twitter / X', url: 'https://www.x.com', iconKey: 'twitter' },
+  { id: 'ig', name: 'Instagram', url: 'https://www.instagram.com', iconKey: 'instagram' },
+  { id: 'wiki', name: 'Wikipedia', url: 'https://www.wikipedia.org', iconKey: 'wikipedia' },
+  { id: 'amz', name: 'Amazon', url: 'https://www.amazon.com', iconKey: 'amazon' },
+];
+
 export interface EmbeddedBrowserHandle {
   reload: () => void;
   findInPage: (term: string) => void;
@@ -88,6 +104,10 @@ interface BrowserContextType {
   setAdBlockEnabled: (v: boolean) => void;
   forceDarkEnabled: boolean;
   setForceDarkEnabled: (v: boolean) => void;
+  shortcuts: Shortcut[];
+  addShortcut: (name: string, url: string) => void;
+  removeShortcut: (id: string) => void;
+  moveShortcut: (id: string, direction: -1 | 1) => void;
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   canGoBack: boolean;
@@ -126,6 +146,7 @@ const BOOKMARKS_KEY = 'browser_bookmarks';
 const DOWNLOADS_KEY = 'browser_downloads';
 const AD_BLOCK_KEY = 'ad_block_enabled';
 const FORCE_DARK_KEY = 'force_dark_enabled';
+const SHORTCUTS_KEY = 'custom_shortcuts';
 
 export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
@@ -136,6 +157,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [adBlockEnabled, setAdBlockEnabledState] = useState(true);
   const [forceDarkEnabled, setForceDarkEnabledState] = useState(false);
+  const [shortcuts, setShortcuts] = useState<Shortcut[]>(DEFAULT_SHORTCUTS);
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
   const downloadBusyRef = useRef(false);
 
@@ -167,6 +189,9 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     Preferences.get({ key: FORCE_DARK_KEY }).then(({ value }) => {
       if (value !== null) setForceDarkEnabledState(value === 'true');
     });
+    Preferences.get({ key: SHORTCUTS_KEY }).then(({ value }) => {
+      if (value) setShortcuts(JSON.parse(value));
+    });
   }, []);
 
   const setAdBlockEnabled = useCallback((v: boolean) => {
@@ -177,6 +202,37 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const setForceDarkEnabled = useCallback((v: boolean) => {
     setForceDarkEnabledState(v);
     Preferences.set({ key: FORCE_DARK_KEY, value: String(v) });
+  }, []);
+
+  const addShortcut = useCallback((name: string, url: string) => {
+    setShortcuts((prev) => {
+      const next = [
+        ...prev,
+        { id: makeId(), name: name.trim() || getDisplayUrl(normalizeUrl(url)), url: normalizeUrl(url), iconKey: 'generic' },
+      ];
+      Preferences.set({ key: SHORTCUTS_KEY, value: JSON.stringify(next) });
+      return next;
+    });
+  }, []);
+
+  const removeShortcut = useCallback((id: string) => {
+    setShortcuts((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      Preferences.set({ key: SHORTCUTS_KEY, value: JSON.stringify(next) });
+      return next;
+    });
+  }, []);
+
+  const moveShortcut = useCallback((id: string, direction: -1 | 1) => {
+    setShortcuts((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      const targetIdx = idx + direction;
+      if (idx === -1 || targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      Preferences.set({ key: SHORTCUTS_KEY, value: JSON.stringify(next) });
+      return next;
+    });
   }, []);
 
   const updateActiveTab = useCallback(
@@ -487,6 +543,10 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         setAdBlockEnabled,
         forceDarkEnabled,
         setForceDarkEnabled,
+        shortcuts,
+        addShortcut,
+        removeShortcut,
+        moveShortcut,
         isLoading,
         setIsLoading,
         canGoBack,
