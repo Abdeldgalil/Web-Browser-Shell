@@ -918,3 +918,25 @@ button {
   font-size: 12px;
   margin-top: 16px;
 }
+.urlbar-suggestions {
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.urlbar-suggestion-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  border-bottom: 1px solid;
+  font-size: 14px;
+  text-align: left;
+}
+.urlbar-suggestion-row:last-child {
+  border-bottom: none;
+}
+.urlbar-suggestion-row:active {
+  opacity: 0.6;
+}
