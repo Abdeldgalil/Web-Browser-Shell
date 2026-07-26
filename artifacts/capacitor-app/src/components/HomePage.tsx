@@ -1,18 +1,50 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Youtube, Facebook, Twitter, Instagram, Newspaper, ScanLine } from 'lucide-react';
+import {
+  Search,
+  Youtube,
+  Facebook,
+  Twitter,
+  Instagram,
+  Newspaper,
+  ScanLine,
+  Globe,
+  Pencil,
+  Check,
+  Plus,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { useColors } from '../hooks/useColors';
-import { useBrowser, normalizeUrl } from '../context/BrowserContext';
+import { useBrowser, normalizeUrl, Shortcut } from '../context/BrowserContext';
 
-const QUICK_SITES = [
-  { name: 'YouTube', url: 'https://www.youtube.com', icon: Youtube, color: '#FF0000' },
-  { name: 'Facebook', url: 'https://www.facebook.com', icon: Facebook, color: '#1877F2' },
-  { name: 'Twitter / X', url: 'https://www.x.com', icon: Twitter, color: '#000000' },
-  { name: 'Instagram', url: 'https://www.instagram.com', icon: Instagram, color: '#E4405F' },
-  { name: 'Wikipedia', url: 'https://www.wikipedia.org', icon: Newspaper, color: '#666666' },
-  { name: 'Amazon', url: 'https://www.amazon.com', icon: Newspaper, color: '#FF9900' },
-];
+const ICON_MAP: Record<string, any> = {
+  youtube: Youtube,
+  facebook: Facebook,
+  twitter: Twitter,
+  instagram: Instagram,
+  wikipedia: Newspaper,
+  amazon: Newspaper,
+  generic: Globe,
+};
+
+const COLOR_MAP: Record<string, string> = {
+  youtube: '#FF0000',
+  facebook: '#1877F2',
+  twitter: '#000000',
+  instagram: '#E4405F',
+  wikipedia: '#666666',
+  amazon: '#FF9900',
+};
+
+function genericColor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 55%, 45%)`;
+}
 
 interface NewsItem {
   title: string;
@@ -27,12 +59,16 @@ function getBackgroundUrl(): string {
 
 export default function HomePage() {
   const colors = useColors();
-  const { navigate, bookmarks } = useBrowser();
+  const { navigate, bookmarks, shortcuts, addShortcut, removeShortcut, moveShortcut } = useBrowser();
   const [value, setValue] = useState('');
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsError, setNewsError] = useState(false);
   const [bgUrl] = useState(getBackgroundUrl);
   const [bgLoaded, setBgLoaded] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newUrl, setNewUrl] = useState('');
   const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
@@ -74,6 +110,15 @@ export default function HomePage() {
     }
   };
 
+  const handleAddShortcut = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUrl.trim()) return;
+    addShortcut(newName, newUrl);
+    setNewName('');
+    setNewUrl('');
+    setShowAddForm(false);
+  };
+
   return (
     <div className="home-page">
       <img
@@ -107,12 +152,7 @@ export default function HomePage() {
                 />
               </div>
               {isNative && (
-                <button
-                  type="button"
-                  className="home-qr-btn"
-                  onClick={handleScanQr}
-                  aria-label="Scan QR code"
-                >
+                <button type="button" className="home-qr-btn" onClick={handleScanQr} aria-label="Scan QR code">
                   <ScanLine size={19} strokeWidth={2.25} color="#fff" />
                 </button>
               )}
@@ -120,21 +160,56 @@ export default function HomePage() {
           </form>
         </div>
 
-        {/* Quick sites */}
+        {/* Quick sites — customizable */}
         <div className="home-section">
-          <div className="home-section-title">Quick Sites</div>
+          <div className="home-section-header">
+            <div className="home-section-title">Quick Sites</div>
+            <button className="home-edit-toggle" onClick={() => setEditMode((v) => !v)}>
+              {editMode ? <Check size={14} strokeWidth={2.5} /> : <Pencil size={13} strokeWidth={2.25} />}
+              <span>{editMode ? 'Done' : 'Edit'}</span>
+            </button>
+          </div>
           <div className="home-grid">
-            {QUICK_SITES.map((site) => {
-              const Icon = site.icon;
+            {shortcuts.map((site: Shortcut, idx: number) => {
+              const Icon = ICON_MAP[site.iconKey] || Globe;
+              const color = COLOR_MAP[site.iconKey] || genericColor(site.url);
               return (
-                <button key={site.name} className="home-shortcut" onClick={() => navigate(site.url)}>
-                  <div className="home-shortcut-icon" style={{ background: site.color }}>
-                    <Icon size={20} color="#fff" strokeWidth={2} />
-                  </div>
-                  <span className="home-shortcut-label">{site.name}</span>
-                </button>
+                <div key={site.id} className="home-shortcut-wrap">
+                  {editMode && (
+                    <>
+                      <button className="home-shortcut-remove" onClick={() => removeShortcut(site.id)}>
+                        <X size={11} strokeWidth={3} />
+                      </button>
+                      <div className="home-shortcut-move">
+                        <button disabled={idx === 0} onClick={() => moveShortcut(site.id, -1)}>
+                          <ChevronLeft size={12} strokeWidth={3} />
+                        </button>
+                        <button disabled={idx === shortcuts.length - 1} onClick={() => moveShortcut(site.id, 1)}>
+                          <ChevronRight size={12} strokeWidth={3} />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  <button
+                    className="home-shortcut"
+                    onClick={() => !editMode && navigate(site.url)}
+                    disabled={editMode}
+                  >
+                    <div className="home-shortcut-icon" style={{ background: color }}>
+                      <Icon size={20} color="#fff" strokeWidth={2} />
+                    </div>
+                    <span className="home-shortcut-label">{site.name}</span>
+                  </button>
+                </div>
               );
             })}
+
+            <button className="home-shortcut" onClick={() => setShowAddForm(true)}>
+              <div className="home-shortcut-icon home-shortcut-add-icon">
+                <Plus size={22} color="#fff" strokeWidth={2.25} />
+              </div>
+              <span className="home-shortcut-label">Add</span>
+            </button>
           </div>
         </div>
 
@@ -178,6 +253,45 @@ export default function HomePage() {
           )}
         </div>
       </div>
+
+      {showAddForm && (
+        <div className="modal-backdrop" onClick={() => setShowAddForm(false)}>
+          <div className="modal-sheet add-shortcut-sheet" style={{ background: colors.card }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-handle" style={{ background: colors.border }} />
+            <div className="modal-header" style={{ borderBottomColor: colors.border }}>
+              <span className="modal-title" style={{ color: colors.foreground }}>
+                Add Shortcut
+              </span>
+              <button className="modal-close" style={{ background: colors.muted }} onClick={() => setShowAddForm(false)}>
+                ✕
+              </button>
+            </div>
+            <form className="add-shortcut-form" onSubmit={handleAddShortcut}>
+              <input
+                className="add-shortcut-input"
+                style={{ background: colors.muted, color: colors.foreground }}
+                placeholder="Name (optional)"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+              <input
+                className="add-shortcut-input"
+                style={{ background: colors.muted, color: colors.foreground }}
+                placeholder="Website address"
+                autoCapitalize="none"
+                autoCorrect="off"
+                inputMode="url"
+                value={newUrl}
+                onChange={(e) => setNewUrl(e.target.value)}
+                autoFocus
+              />
+              <button type="submit" className="add-shortcut-submit" style={{ background: colors.primary }}>
+                Add
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
