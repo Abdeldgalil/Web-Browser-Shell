@@ -14,6 +14,7 @@ import HistoryModal from './components/HistoryModal';
 import MoreMenu from './components/MoreMenu';
 import TabSwitcher from './components/TabSwitcher';
 import DownloadsModal from './components/DownloadsModal';
+import AboutModal from './components/AboutModal';
 import HomePage from './components/HomePage';
 
 function safeAreaTop(): number {
@@ -188,6 +189,7 @@ function BrowserHost() {
   const [showMore, setShowMore] = useState(false);
   const [showTabs, setShowTabs] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [showFindBar, setShowFindBar] = useState(false);
   const [findTerm, setFindTerm] = useState('');
   const [desktopMode, setDesktopMode] = useState(false);
@@ -199,7 +201,7 @@ function BrowserHost() {
   const lastBackPressRef = useRef(0);
   const isNative = Capacitor.isNativePlatform();
   const isHome = currentUrl === HOME_URL;
-  const anyModalOpen = showBookmarks || showHistory || showMore || showTabs || showDownloads;
+  const anyModalOpen = showBookmarks || showHistory || showMore || showTabs || showDownloads || showAbout;
 
   useEffect(() => {
     isIncognitoRef.current = isIncognito;
@@ -222,6 +224,7 @@ function BrowserHost() {
         setShowMore(false);
         setShowTabs(false);
         setShowDownloads(false);
+        setShowAbout(false);
         return;
       }
       if (showFindBar) {
@@ -490,6 +493,7 @@ function BrowserHost() {
       <HistoryModal visible={showHistory} onClose={() => setShowHistory(false)} />
       <TabSwitcher visible={showTabs} onClose={() => setShowTabs(false)} />
       <DownloadsModal visible={showDownloads} onClose={() => setShowDownloads(false)} />
+      <AboutModal visible={showAbout} onClose={() => setShowAbout(false)} />
       <MoreMenu
         visible={showMore}
         onClose={() => setShowMore(false)}
@@ -501,6 +505,7 @@ function BrowserHost() {
         onOpenHistory={() => setShowHistory(true)}
         onOpenDownloads={() => setShowDownloads(true)}
         onReaderMode={handleReaderMode}
+        onOpenAbout={() => setShowAbout(true)}
         desktopMode={desktopMode}
         disabled={isHome}
         adBlockEnabled={adBlockEnabled}
