@@ -780,3 +780,90 @@ button {
   border-radius: 3px;
   transition: width 0.2s ease;
 }
+/* ---------- Customizable home shortcuts ---------- */
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.home-edit-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  padding: 5px 10px;
+  border-radius: 10px;
+}
+.home-shortcut-wrap {
+  position: relative;
+}
+.home-shortcut-remove {
+  position: absolute;
+  top: -4px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e53935;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.home-shortcut-move {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  z-index: 2;
+}
+.home-shortcut-move button {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home-shortcut-move button:disabled {
+  opacity: 0.25;
+}
+.home-shortcut-add-icon {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  border: 1.5px dashed rgba(255, 255, 255, 0.5);
+}
+.add-shortcut-sheet {
+  max-height: none;
+  min-height: 0;
+}
+.add-shortcut-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+.add-shortcut-input {
+  border: none;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 15px;
+  outline: none;
+}
+.add-shortcut-submit {
+  border-radius: 10px;
+  padding: 12px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  margin-top: 4px;
+}
