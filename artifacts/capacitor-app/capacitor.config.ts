@@ -10,6 +10,9 @@ const config: CapacitorConfig = {
   },
   plugins: {
     CapacitorInAppBrowser: {},
+    CapacitorHttp: {
+      enabled: true,
+    },
   },
 };
 
