@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Moon,
   BookOpen,
+  Info,
 } from 'lucide-react';
 import { useColors } from '../hooks/useColors';
 import { useBrowser } from '../context/BrowserContext';
@@ -27,6 +28,7 @@ interface Props {
   onOpenHistory: () => void;
   onOpenDownloads: () => void;
   onReaderMode: () => void;
+  onOpenAbout: () => void;
   desktopMode: boolean;
   disabled: boolean;
   adBlockEnabled: boolean;
@@ -46,6 +48,7 @@ export default function MoreMenu({
   onOpenHistory,
   onOpenDownloads,
   onReaderMode,
+  onOpenAbout,
   desktopMode,
   disabled,
   adBlockEnabled,
@@ -166,6 +169,13 @@ export default function MoreMenu({
             <ShieldCheck size={20} strokeWidth={2} color={colors.foreground} />
             <span style={{ color: colors.foreground, flex: 1 }}>Block Ads & Trackers</span>
             {adBlockEnabled && <Check size={18} strokeWidth={2.5} color={colors.primary} />}
+          </button>
+
+          <div className="more-menu-divider" style={{ background: colors.border }} />
+
+          <button className="more-menu-item" onClick={() => run(onOpenAbout)}>
+            <Info size={20} strokeWidth={2} color={colors.foreground} />
+            <span style={{ color: colors.foreground }}>About</span>
           </button>
         </div>
       </div>
