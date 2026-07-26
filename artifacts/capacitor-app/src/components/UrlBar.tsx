@@ -3,6 +3,7 @@ import { Lock, Globe, Search, X, VenetianMask, ScanLine } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { useColors, useColorScheme } from '../hooks/useColors';
+import { useSearchSuggestions } from '../hooks/useSearchSuggestions';
 import { useBrowser, normalizeUrl, getDisplayUrl, HOME_URL } from '../context/BrowserContext';
 
 export const URL_BAR_CONTENT_HEIGHT = 40;
@@ -16,6 +17,7 @@ export default function UrlBar() {
   const [focused, setFocused] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const suggestions = useSearchSuggestions(focused ? inputValue : '');
 
   const isHome = currentUrl === HOME_URL;
   const displayUrl = getDisplayUrl(currentUrl);
@@ -30,12 +32,16 @@ export default function UrlBar() {
     }
   }, [focused]);
 
+  const go = (value: string) => {
+    navigate(normalizeUrl(value));
+    setFocused(false);
+    inputRef.current?.blur();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
-    navigate(normalizeUrl(inputValue));
-    setFocused(false);
-    inputRef.current?.blur();
+    go(inputValue);
   };
 
   const handleCancel = () => {
@@ -51,10 +57,7 @@ export default function UrlBar() {
       if (camera !== 'granted' && camera !== 'limited') return;
       const { barcodes } = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode] });
       const value = barcodes[0]?.rawValue;
-      if (value) {
-        setFocused(false);
-        navigate(normalizeUrl(value));
-      }
+      if (value) go(value);
     } catch {
       // user cancelled the scan or camera unavailable — do nothing
     }
@@ -146,6 +149,23 @@ export default function UrlBar() {
           </form>
         )}
       </div>
+
+      {focused && suggestions.length > 0 && (
+        <div className="urlbar-suggestions" style={{ background: colors.card }}>
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              className="urlbar-suggestion-row"
+              style={{ borderBottomColor: colors.border }}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => go(s)}
+            >
+              <Search size={14} strokeWidth={2.25} color={colors.mutedForeground} />
+              <span style={{ color: colors.foreground }}>{s}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
