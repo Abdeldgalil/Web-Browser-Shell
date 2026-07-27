@@ -18,7 +18,12 @@ export function normalizeUrl(input: string): string {
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   const domainPattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+/;
   if (domainPattern.test(trimmed) && !trimmed.includes(' ')) return `https://${trimmed}`;
-  return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
+  // DuckDuckGo instead of Google: some mobile carriers share a single IP
+  // across thousands of users (carrier-grade NAT), which triggers Google's
+  // "unusual traffic" CAPTCHA block for everyone on that network — a
+  // problem entirely outside our app's control. DuckDuckGo doesn't use
+  // this kind of aggressive IP-based gating.
+  return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`;
 }
 
 export function getDisplayUrl(url: string): string {
