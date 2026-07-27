@@ -17,7 +17,7 @@ export default function UrlBar() {
   const [focused, setFocused] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const { suggestions, debugError } = useSearchSuggestions(focused ? inputValue : '');
+  const suggestions = useSearchSuggestions(focused ? inputValue : '');
 
   const isHome = currentUrl === HOME_URL;
   const displayUrl = getDisplayUrl(currentUrl);
@@ -150,13 +150,8 @@ export default function UrlBar() {
         )}
       </div>
 
-      {focused && (suggestions.length > 0 || debugError) && (
+      {focused && suggestions.length > 0 && (
         <div className="urlbar-suggestions" style={{ background: colors.card }}>
-          {debugError && (
-            <div style={{ padding: '10px 14px', fontSize: 12, color: '#e53935' }}>
-              Debug: {debugError}
-            </div>
-          )}
           {suggestions.map((s, i) => (
             <button
               key={i}
