@@ -17,7 +17,7 @@ export default function UrlBar() {
   const [focused, setFocused] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const suggestions = useSearchSuggestions(focused ? inputValue : '');
+  const { suggestions, debugError } = useSearchSuggestions(focused ? inputValue : '');
 
   const isHome = currentUrl === HOME_URL;
   const displayUrl = getDisplayUrl(currentUrl);
