@@ -150,8 +150,13 @@ export default function UrlBar() {
         )}
       </div>
 
-      {focused && suggestions.length > 0 && (
+      {focused && (suggestions.length > 0 || debugError) && (
         <div className="urlbar-suggestions" style={{ background: colors.card }}>
+          {debugError && (
+            <div style={{ padding: '10px 14px', fontSize: 12, color: '#e53935' }}>
+              Debug: {debugError}
+            </div>
+          )}
           {suggestions.map((s, i) => (
             <button
               key={i}
