@@ -940,3 +940,28 @@ button {
 .urlbar-suggestion-row:active {
   opacity: 0.6;
 }
+.home-suggestions {
+  margin-top: 8px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(20, 20, 22, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.home-suggestion-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 14px;
+  color: #fff;
+  text-align: left;
+}
+.home-suggestion-row:last-child {
+  border-bottom: none;
+}
+.home-suggestion-row:active {
+  opacity: 0.6;
+}
