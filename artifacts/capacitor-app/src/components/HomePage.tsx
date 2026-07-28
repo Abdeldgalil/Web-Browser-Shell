@@ -18,6 +18,7 @@ import {
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning';
 import { useColors } from '../hooks/useColors';
+import { useSearchSuggestions } from '../hooks/useSearchSuggestions';
 import { useBrowser, normalizeUrl, Shortcut } from '../context/BrowserContext';
 
 const ICON_MAP: Record<string, any> = {
@@ -61,6 +62,8 @@ export default function HomePage() {
   const colors = useColors();
   const { navigate, bookmarks, shortcuts, addShortcut, removeShortcut, moveShortcut } = useBrowser();
   const [value, setValue] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const { suggestions, debugError } = useSearchSuggestions(searchFocused ? value : '');
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsError, setNewsError] = useState(false);
   const [bgUrl] = useState(getBackgroundUrl);
@@ -91,10 +94,15 @@ export default function HomePage() {
       .catch(() => setNewsError(true));
   }, []);
 
+  const go = (v: string) => {
+    navigate(normalizeUrl(v));
+    setSearchFocused(false);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!value.trim()) return;
-    navigate(normalizeUrl(value));
+    go(value);
   };
 
   const handleScanQr = async () => {
@@ -104,7 +112,7 @@ export default function HomePage() {
       if (camera !== 'granted' && camera !== 'limited') return;
       const { barcodes } = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode] });
       const result = barcodes[0]?.rawValue;
-      if (result) navigate(normalizeUrl(result));
+      if (result) go(result);
     } catch {
       // user cancelled the scan or camera unavailable — do nothing
     }
@@ -145,6 +153,8 @@ export default function HomePage() {
                   className="home-search-input"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                   autoCapitalize="none"
                   autoCorrect="off"
                   inputMode="url"
@@ -157,6 +167,26 @@ export default function HomePage() {
                 </button>
               )}
             </div>
+
+            {searchFocused && (suggestions.length > 0 || debugError) && (
+              <div className="home-suggestions">
+                {debugError && (
+                  <div style={{ padding: '10px 14px', fontSize: 12, color: '#ff6b6b' }}>Debug: {debugError}</div>
+                )}
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="home-suggestion-row"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => go(s)}
+                  >
+                    <Search size={14} strokeWidth={2.25} color="rgba(255,255,255,0.7)" />
+                    <span>{s}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </form>
         </div>
 
