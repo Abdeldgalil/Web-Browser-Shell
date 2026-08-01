@@ -122,31 +122,24 @@ function unwrapTranslatedUrl(url: string): string | null {
   }
 }
 
+// Kept short and simple on purpose: each rule's regex is checked against
+// every single network request on every page (images, scripts, fonts...),
+// so a long, complex rule list adds real, noticeable latency across all
+// browsing — not just on ad-heavy sites. This trims it to the handful of
+// domains that account for most ad/tracker traffic.
 const AD_BLOCK_DOMAINS = [
-  'doubleclick\\.net',
-  'googlesyndication\\.com',
-  'googleadservices\\.com',
-  'google-analytics\\.com',
-  'googletagmanager\\.com',
-  'adservice\\.google\\.',
-  'amazon-adsystem\\.com',
-  'taboola\\.com',
-  'outbrain\\.com',
-  'criteo\\.(com|net)',
-  'scorecardresearch\\.com',
-  'adnxs\\.com',
-  'moatads\\.com',
-  'pubmatic\\.com',
-  'rubiconproject\\.com',
-  'casalemedia\\.com',
-  'openx\\.net',
-  'media\\.net',
-  'adsrvr\\.org',
-  'quantserve\\.com',
+  'doubleclick.net',
+  'googlesyndication.com',
+  'googleadservices.com',
+  'google-analytics.com',
+  'googletagmanager.com',
+  'amazon-adsystem.com',
+  'adnxs.com',
+  'scorecardresearch.com',
 ];
 
 const AD_BLOCK_RULES = AD_BLOCK_DOMAINS.map((d) => ({
-  urlRegex: `^https?://([a-z0-9-]+\\.)*${d}.*`,
+  urlRegex: `^https?://[^/]*${d.replace(/\./g, '\\.')}/.*`,
   action: 'cancel' as const,
 }));
 
