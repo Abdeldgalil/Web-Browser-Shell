@@ -23,7 +23,7 @@ export function normalizeUrl(input: string): string {
   // "unusual traffic" CAPTCHA block for everyone on that network — a
   // problem entirely outside our app's control. DuckDuckGo doesn't use
   // this kind of aggressive IP-based gating.
-  return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`;
+  return `https://www.bing.com/search?q=${encodeURIComponent(trimmed)}`;
 }
 
 export function getDisplayUrl(url: string): string {
