@@ -138,6 +138,28 @@ button {
   padding: 4px;
   flex-shrink: 0;
 }
+.urlbar-suggestions {
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.urlbar-suggestion-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  border-bottom: 1px solid;
+  font-size: 14px;
+  text-align: left;
+}
+.urlbar-suggestion-row:last-child {
+  border-bottom: none;
+}
+.urlbar-suggestion-row:active {
+  opacity: 0.6;
+}
 
 /* ---------- Toolbar ---------- */
 .toolbar {
@@ -446,10 +468,52 @@ button {
   color: rgba(255, 255, 255, 0.65);
 }
 
+.home-suggestions {
+  margin-top: 8px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(20, 20, 22, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.home-suggestion-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 14px;
+  color: #fff;
+  text-align: left;
+}
+.home-suggestion-row:last-child {
+  border-bottom: none;
+}
+.home-suggestion-row:active {
+  opacity: 0.6;
+}
+
 .home-section {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.home-edit-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  padding: 5px 10px;
+  border-radius: 10px;
 }
 .home-section-title {
   font-size: 13px;
@@ -465,6 +529,46 @@ button {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 14px;
+}
+.home-shortcut-wrap {
+  position: relative;
+}
+.home-shortcut-remove {
+  position: absolute;
+  top: -4px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e53935;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.home-shortcut-move {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  z-index: 2;
+}
+.home-shortcut-move button {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home-shortcut-move button:disabled {
+  opacity: 0.25;
 }
 .home-shortcut {
   display: flex;
@@ -489,6 +593,11 @@ button {
 .home-shortcut-icon-muted {
   background: rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(8px);
+}
+.home-shortcut-add-icon {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  border: 1.5px dashed rgba(255, 255, 255, 0.5);
 }
 .home-shortcut-label {
   font-size: 11px;
@@ -551,6 +660,32 @@ button {
   color: rgba(255, 255, 255, 0.7);
 }
 
+.add-shortcut-sheet {
+  max-height: none;
+  min-height: 0;
+}
+.add-shortcut-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+.add-shortcut-input {
+  border: none;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 15px;
+  outline: none;
+}
+.add-shortcut-submit {
+  border-radius: 10px;
+  padding: 12px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  margin-top: 4px;
+}
+
 /* ---------- More menu ---------- */
 .more-menu-sheet {
   max-height: none;
@@ -610,12 +745,14 @@ button {
 .tabswitcher-sheet {
   max-height: 78%;
 }
+.tabswitcher-scroll {
+  overflow-y: auto;
+}
 .tabswitcher-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 14px;
   padding: 16px;
-  overflow-y: auto;
 }
 .tabswitcher-card {
   position: relative;
@@ -703,6 +840,52 @@ button {
   box-shadow: 0 4px 12px rgba(76, 29, 149, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.25);
 }
 
+/* ---------- Recently closed tabs ---------- */
+.recently-closed-section {
+  padding: 4px 16px 16px;
+  border-top: 1px solid rgba(128, 128, 128, 0.15);
+  margin-top: 4px;
+}
+.recently-closed-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 12px 2px 6px;
+}
+.recently-closed-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 2px;
+  border-bottom: 1px solid;
+  text-align: left;
+}
+.recently-closed-row:last-child {
+  border-bottom: none;
+}
+.recently-closed-row:active {
+  opacity: 0.6;
+}
+.recently-closed-info {
+  min-width: 0;
+  flex: 1;
+}
+.recently-closed-name {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recently-closed-url {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---------- Downloads ---------- */
 .downloads-input-row {
   display: flex;
@@ -780,93 +963,7 @@ button {
   border-radius: 3px;
   transition: width 0.2s ease;
 }
-/* ---------- Customizable home shortcuts ---------- */
-.home-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.home-edit-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.16);
-  padding: 5px 10px;
-  border-radius: 10px;
-}
-.home-shortcut-wrap {
-  position: relative;
-}
-.home-shortcut-remove {
-  position: absolute;
-  top: -4px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #e53935;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-}
-.home-shortcut-move {
-  position: absolute;
-  bottom: 20px;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: space-between;
-  padding: 0 2px;
-  z-index: 2;
-}
-.home-shortcut-move button {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.home-shortcut-move button:disabled {
-  opacity: 0.25;
-}
-.home-shortcut-add-icon {
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(8px);
-  border: 1.5px dashed rgba(255, 255, 255, 0.5);
-}
-.add-shortcut-sheet {
-  max-height: none;
-  min-height: 0;
-}
-.add-shortcut-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-}
-.add-shortcut-input {
-  border: none;
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-size: 15px;
-  outline: none;
-}
-.add-shortcut-submit {
-  border-radius: 10px;
-  padding: 12px;
-  color: #fff;
-  font-weight: 600;
-  font-size: 15px;
-  margin-top: 4px;
-}
+
 /* ---------- About screen ---------- */
 .about-sheet {
   max-height: none;
@@ -917,51 +1014,4 @@ button {
 .about-footer {
   font-size: 12px;
   margin-top: 16px;
-}
-.urlbar-suggestions {
-  border-radius: 14px;
-  overflow: hidden;
-  margin-top: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-}
-.urlbar-suggestion-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 14px;
-  border-bottom: 1px solid;
-  font-size: 14px;
-  text-align: left;
-}
-.urlbar-suggestion-row:last-child {
-  border-bottom: none;
-}
-.urlbar-suggestion-row:active {
-  opacity: 0.6;
-}
-.home-suggestions {
-  margin-top: 8px;
-  border-radius: 14px;
-  overflow: hidden;
-  background: rgba(20, 20, 22, 0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-.home-suggestion-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 14px;
-  color: #fff;
-  text-align: left;
-}
-.home-suggestion-row:last-child {
-  border-bottom: none;
-}
-.home-suggestion-row:active {
-  opacity: 0.6;
 }
