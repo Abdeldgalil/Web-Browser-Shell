@@ -18,11 +18,6 @@ export function normalizeUrl(input: string): string {
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
   const domainPattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+/;
   if (domainPattern.test(trimmed) && !trimmed.includes(' ')) return `https://${trimmed}`;
-  // DuckDuckGo instead of Google: some mobile carriers share a single IP
-  // across thousands of users (carrier-grade NAT), which triggers Google's
-  // "unusual traffic" CAPTCHA block for everyone on that network — a
-  // problem entirely outside our app's control. DuckDuckGo doesn't use
-  // this kind of aggressive IP-based gating.
   return `https://www.bing.com/search?q=${encodeURIComponent(trimmed)}`;
 }
 
@@ -56,6 +51,13 @@ export interface Tab {
   stack: string[];
   index: number;
   incognito: boolean;
+}
+
+export interface ClosedTabInfo {
+  id: string;
+  url: string;
+  title: string;
+  closedAt: number;
 }
 
 export interface DownloadItem {
@@ -113,6 +115,9 @@ interface BrowserContextType {
   addShortcut: (name: string, url: string) => void;
   removeShortcut: (id: string) => void;
   moveShortcut: (id: string, direction: -1 | 1) => void;
+  recentlyClosed: ClosedTabInfo[];
+  reopenClosedTab: (id: string) => void;
+  clearRecentlyClosed: () => void;
   isLoading: boolean;
   setIsLoading: (v: boolean) => void;
   canGoBack: boolean;
@@ -152,6 +157,14 @@ const DOWNLOADS_KEY = 'browser_downloads';
 const AD_BLOCK_KEY = 'ad_block_enabled';
 const FORCE_DARK_KEY = 'force_dark_enabled';
 const SHORTCUTS_KEY = 'custom_shortcuts';
+const SESSION_KEY = 'browser_session_v1';
+const CLOSED_TABS_KEY = 'recently_closed_tabs';
+const MAX_CLOSED_TABS = 10;
+
+interface PersistedSessionTab {
+  url: string;
+  title: string;
+}
 
 export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
@@ -163,8 +176,10 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [adBlockEnabled, setAdBlockEnabledState] = useState(false);
   const [forceDarkEnabled, setForceDarkEnabledState] = useState(false);
   const [shortcuts, setShortcuts] = useState<Shortcut[]>(DEFAULT_SHORTCUTS);
+  const [recentlyClosed, setRecentlyClosed] = useState<ClosedTabInfo[]>([]);
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
   const downloadBusyRef = useRef(false);
+  const sessionHydratedRef = useRef(false);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
   const currentUrl = activeTab?.url ?? HOME_URL;
@@ -197,7 +212,42 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     Preferences.get({ key: SHORTCUTS_KEY }).then(({ value }) => {
       if (value) setShortcuts(JSON.parse(value));
     });
+    Preferences.get({ key: CLOSED_TABS_KEY }).then(({ value }) => {
+      if (value) setRecentlyClosed(JSON.parse(value));
+    });
+    // Session restore: bring back the tabs open last time (private tabs are
+    // never persisted). Each restored tab starts a fresh navigation stack —
+    // only the current URL/title are remembered, not full back/forward
+    // history per tab.
+    Preferences.get({ key: SESSION_KEY }).then(({ value }) => {
+      sessionHydratedRef.current = true;
+      if (!value) return;
+      try {
+        const saved: PersistedSessionTab[] = JSON.parse(value);
+        if (!Array.isArray(saved) || saved.length === 0) return;
+        const restored = saved.map((s) => {
+          const t = makeTab(s.url, false);
+          t.title = s.title || '';
+          return t;
+        });
+        setTabs(restored);
+        setActiveTabId(restored[0].id);
+      } catch {
+        // ignore corrupt session data
+      }
+    });
   }, []);
+
+  // Persist the session (non-incognito tabs only) whenever it changes, but
+  // only after the initial restore attempt above has completed — otherwise
+  // we'd overwrite the saved session with the default blank tab first.
+  useEffect(() => {
+    if (!sessionHydratedRef.current) return;
+    const persistable: PersistedSessionTab[] = tabs
+      .filter((t) => !t.incognito)
+      .map((t) => ({ url: t.url, title: t.title }));
+    Preferences.set({ key: SESSION_KEY, value: JSON.stringify(persistable) });
+  }, [tabs]);
 
   const setAdBlockEnabled = useCallback((v: boolean) => {
     setAdBlockEnabledState(v);
@@ -336,8 +386,26 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const closeTab = useCallback(
     (id: string) => {
       setTabs((prev) => {
+        const closing = prev.find((t) => t.id === id);
         const idx = prev.findIndex((t) => t.id === id);
         if (idx === -1) return prev;
+
+        // Remember it for "Recently closed" — private tabs are excluded,
+        // and the app's own home page isn't worth remembering.
+        if (closing && !closing.incognito && closing.url !== HOME_URL) {
+          setRecentlyClosed((prevClosed) => {
+            const entry: ClosedTabInfo = {
+              id: makeId(),
+              url: closing.url,
+              title: closing.title || getDisplayUrl(closing.url),
+              closedAt: Date.now(),
+            };
+            const next = [entry, ...prevClosed].slice(0, MAX_CLOSED_TABS);
+            Preferences.set({ key: CLOSED_TABS_KEY, value: JSON.stringify(next) });
+            return next;
+          });
+        }
+
         const next = prev.filter((t) => t.id !== id);
         if (next.length === 0) {
           const fresh = makeTab();
@@ -353,6 +421,29 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     },
     [activeTabId]
   );
+
+  const reopenClosedTab = useCallback(
+    (id: string) => {
+      setRecentlyClosed((prev) => {
+        const entry = prev.find((c) => c.id === id);
+        if (entry) {
+          const tab = makeTab(entry.url, false);
+          tab.title = entry.title;
+          setTabs((prevTabs) => [...prevTabs, tab]);
+          setActiveTabId(tab.id);
+        }
+        const next = prev.filter((c) => c.id !== id);
+        Preferences.set({ key: CLOSED_TABS_KEY, value: JSON.stringify(next) });
+        return next;
+      });
+    },
+    []
+  );
+
+  const clearRecentlyClosed = useCallback(() => {
+    setRecentlyClosed([]);
+    Preferences.remove({ key: CLOSED_TABS_KEY });
+  }, []);
 
   const switchTab = useCallback((id: string) => {
     setActiveTabId(id);
@@ -552,6 +643,9 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         addShortcut,
         removeShortcut,
         moveShortcut,
+        recentlyClosed,
+        reopenClosedTab,
+        clearRecentlyClosed,
         isLoading,
         setIsLoading,
         canGoBack,
