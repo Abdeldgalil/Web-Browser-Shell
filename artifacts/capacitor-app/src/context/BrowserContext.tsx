@@ -160,7 +160,7 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
-  const [adBlockEnabled, setAdBlockEnabledState] = useState(true);
+  const [adBlockEnabled, setAdBlockEnabledState] = useState(false);
   const [forceDarkEnabled, setForceDarkEnabledState] = useState(false);
   const [shortcuts, setShortcuts] = useState<Shortcut[]>(DEFAULT_SHORTCUTS);
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
