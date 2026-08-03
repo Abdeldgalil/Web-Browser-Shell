@@ -180,6 +180,18 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   const browserRef = useRef<EmbeddedBrowserHandle | null>(null);
   const downloadBusyRef = useRef(false);
   const sessionHydratedRef = useRef(false);
+  // Always mirrors the latest activeTabId. Functions below read from this
+  // ref (instead of closing over the `activeTabId` state value) so that a
+  // stale closure captured elsewhere in the app — e.g. an event listener
+  // set up once and never re-subscribed — still always acts on whichever
+  // tab is actually active right now, not whichever was active when that
+  // closure was first created. This was the root cause of session restore
+  // only ever remembering the first page of a tab.
+  const activeTabIdRef = useRef(activeTabId);
+
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0];
   const currentUrl = activeTab?.url ?? HOME_URL;
@@ -215,10 +227,6 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     Preferences.get({ key: CLOSED_TABS_KEY }).then(({ value }) => {
       if (value) setRecentlyClosed(JSON.parse(value));
     });
-    // Session restore: bring back the tabs open last time (private tabs are
-    // never persisted). Each restored tab starts a fresh navigation stack —
-    // only the current URL/title are remembered, not full back/forward
-    // history per tab.
     Preferences.get({ key: SESSION_KEY }).then(({ value }) => {
       sessionHydratedRef.current = true;
       if (!value) return;
@@ -238,15 +246,8 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Persist the session (non-incognito tabs only) whenever it changes, but
-  // only after the initial restore attempt above has completed — otherwise
-  // we'd overwrite the saved session with the default blank tab first.
- useEffect(() => {
+  useEffect(() => {
     if (!sessionHydratedRef.current) return;
-    // Use the tab's actual current stack position (updated by both explicit
-    // navigation AND in-page link taps), not the `url` field alone — the
-    // latter only changes on explicit navigation, so it misses wherever the
-    // user ended up by clicking around inside a site.
     const persistable: PersistedSessionTab[] = tabs
       .filter((t) => !t.incognito)
       .map((t) => ({ url: t.stack[t.index] ?? t.url, title: t.title }));
@@ -294,53 +295,46 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const updateActiveTab = useCallback(
-    (patch: Partial<Tab>) => {
-      setTabs((prev) => prev.map((t) => (t.id === activeTabId ? { ...t, ...patch } : t)));
-    },
-    [activeTabId]
-  );
+  // Reads the CURRENT active tab id via the ref every time it's called, so
+  // it stays correct even if captured by a stale closure elsewhere.
+  const updateActiveTab = useCallback((patch: Partial<Tab>) => {
+    setTabs((prev) => prev.map((t) => (t.id === activeTabIdRef.current ? { ...t, ...patch } : t)));
+  }, []);
 
-  const navigate = useCallback(
-    (url: string) => {
-      const normalized = normalizeUrl(url);
-      setTabs((prev) =>
-        prev.map((t) => {
-          if (t.id !== activeTabId) return t;
-          const truncated = t.stack.slice(0, t.index + 1);
-          const nextStack = [...truncated, normalized];
-          return {
-            ...t,
-            url: normalized,
-            title: normalized === HOME_URL ? '' : t.title,
-            stack: nextStack,
-            index: nextStack.length - 1,
-          };
-        })
-      );
-    },
-    [activeTabId]
-  );
+  const navigate = useCallback((url: string) => {
+    const normalized = normalizeUrl(url);
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTabIdRef.current) return t;
+        const truncated = t.stack.slice(0, t.index + 1);
+        const nextStack = [...truncated, normalized];
+        return {
+          ...t,
+          url: normalized,
+          title: normalized === HOME_URL ? '' : t.title,
+          stack: nextStack,
+          index: nextStack.length - 1,
+        };
+      })
+    );
+  }, []);
 
-  const trackInPageUrl = useCallback(
-    (url: string) => {
-      setTabs((prev) =>
-        prev.map((t) => {
-          if (t.id !== activeTabId) return t;
-          if (t.stack[t.index] === url) return t;
-          const truncated = t.stack.slice(0, t.index + 1);
-          const nextStack = [...truncated, url];
-          return { ...t, stack: nextStack, index: nextStack.length - 1 };
-        })
-      );
-    },
-    [activeTabId]
-  );
+  const trackInPageUrl = useCallback((url: string) => {
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (t.id !== activeTabIdRef.current) return t;
+        if (t.stack[t.index] === url) return t;
+        const truncated = t.stack.slice(0, t.index + 1);
+        const nextStack = [...truncated, url];
+        return { ...t, stack: nextStack, index: nextStack.length - 1 };
+      })
+    );
+  }, []);
 
   const goHome = useCallback(() => {
     setTabs((prev) =>
       prev.map((t) => {
-        if (t.id !== activeTabId) return t;
+        if (t.id !== activeTabIdRef.current) return t;
         const truncated = t.stack.slice(0, t.index + 1);
         const nextStack = [...truncated, HOME_URL];
         return {
@@ -352,27 +346,27 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
         };
       })
     );
-  }, [activeTabId]);
+  }, []);
 
   const goBack = useCallback(() => {
     setTabs((prev) =>
       prev.map((t) => {
-        if (t.id !== activeTabId || t.index <= 0) return t;
+        if (t.id !== activeTabIdRef.current || t.index <= 0) return t;
         const newIndex = t.index - 1;
         return { ...t, index: newIndex, url: t.stack[newIndex] };
       })
     );
-  }, [activeTabId]);
+  }, []);
 
   const goForward = useCallback(() => {
     setTabs((prev) =>
       prev.map((t) => {
-        if (t.id !== activeTabId || t.index >= t.stack.length - 1) return t;
+        if (t.id !== activeTabIdRef.current || t.index >= t.stack.length - 1) return t;
         const newIndex = t.index + 1;
         return { ...t, index: newIndex, url: t.stack[newIndex] };
       })
     );
-  }, [activeTabId]);
+  }, []);
 
   const setPageTitle = useCallback(
     (t: string) => {
@@ -387,62 +381,54 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
     setActiveTabId(tab.id);
   }, []);
 
-  const closeTab = useCallback(
-    (id: string) => {
-      setTabs((prev) => {
-        const closing = prev.find((t) => t.id === id);
-        const idx = prev.findIndex((t) => t.id === id);
-        if (idx === -1) return prev;
+  const closeTab = useCallback((id: string) => {
+    setTabs((prev) => {
+      const closing = prev.find((t) => t.id === id);
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx === -1) return prev;
 
-        // Remember it for "Recently closed" — private tabs are excluded,
-        // and the app's own home page isn't worth remembering.
-        if (closing && !closing.incognito && closing.url !== HOME_URL) {
-          setRecentlyClosed((prevClosed) => {
-            const entry: ClosedTabInfo = {
-              id: makeId(),
-              url: closing.url,
-              title: closing.title || getDisplayUrl(closing.url),
-              closedAt: Date.now(),
-            };
-            const next = [entry, ...prevClosed].slice(0, MAX_CLOSED_TABS);
-            Preferences.set({ key: CLOSED_TABS_KEY, value: JSON.stringify(next) });
-            return next;
-          });
-        }
+      if (closing && !closing.incognito && closing.url !== HOME_URL) {
+        setRecentlyClosed((prevClosed) => {
+          const entry: ClosedTabInfo = {
+            id: makeId(),
+            url: closing.stack[closing.index] ?? closing.url,
+            title: closing.title || getDisplayUrl(closing.url),
+            closedAt: Date.now(),
+          };
+          const next = [entry, ...prevClosed].slice(0, MAX_CLOSED_TABS);
+          Preferences.set({ key: CLOSED_TABS_KEY, value: JSON.stringify(next) });
+          return next;
+        });
+      }
 
-        const next = prev.filter((t) => t.id !== id);
-        if (next.length === 0) {
-          const fresh = makeTab();
-          setActiveTabId(fresh.id);
-          return [fresh];
-        }
-        if (id === activeTabId) {
-          const newActive = next[Math.max(0, idx - 1)];
-          setActiveTabId(newActive.id);
-        }
-        return next;
-      });
-    },
-    [activeTabId]
-  );
+      const next = prev.filter((t) => t.id !== id);
+      if (next.length === 0) {
+        const fresh = makeTab();
+        setActiveTabId(fresh.id);
+        return [fresh];
+      }
+      if (id === activeTabIdRef.current) {
+        const newActive = next[Math.max(0, idx - 1)];
+        setActiveTabId(newActive.id);
+      }
+      return next;
+    });
+  }, []);
 
-  const reopenClosedTab = useCallback(
-    (id: string) => {
-      setRecentlyClosed((prev) => {
-        const entry = prev.find((c) => c.id === id);
-        if (entry) {
-          const tab = makeTab(entry.url, false);
-          tab.title = entry.title;
-          setTabs((prevTabs) => [...prevTabs, tab]);
-          setActiveTabId(tab.id);
-        }
-        const next = prev.filter((c) => c.id !== id);
-        Preferences.set({ key: CLOSED_TABS_KEY, value: JSON.stringify(next) });
-        return next;
-      });
-    },
-    []
-  );
+  const reopenClosedTab = useCallback((id: string) => {
+    setRecentlyClosed((prev) => {
+      const entry = prev.find((c) => c.id === id);
+      if (entry) {
+        const tab = makeTab(entry.url, false);
+        tab.title = entry.title;
+        setTabs((prevTabs) => [...prevTabs, tab]);
+        setActiveTabId(tab.id);
+      }
+      const next = prev.filter((c) => c.id !== id);
+      Preferences.set({ key: CLOSED_TABS_KEY, value: JSON.stringify(next) });
+      return next;
+    });
+  }, []);
 
   const clearRecentlyClosed = useCallback(() => {
     setRecentlyClosed([]);
