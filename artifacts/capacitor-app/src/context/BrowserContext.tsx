@@ -241,11 +241,15 @@ export function BrowserProvider({ children }: { children: React.ReactNode }) {
   // Persist the session (non-incognito tabs only) whenever it changes, but
   // only after the initial restore attempt above has completed — otherwise
   // we'd overwrite the saved session with the default blank tab first.
-  useEffect(() => {
+ useEffect(() => {
     if (!sessionHydratedRef.current) return;
+    // Use the tab's actual current stack position (updated by both explicit
+    // navigation AND in-page link taps), not the `url` field alone — the
+    // latter only changes on explicit navigation, so it misses wherever the
+    // user ended up by clicking around inside a site.
     const persistable: PersistedSessionTab[] = tabs
       .filter((t) => !t.incognito)
-      .map((t) => ({ url: t.url, title: t.title }));
+      .map((t) => ({ url: t.stack[t.index] ?? t.url, title: t.title }));
     Preferences.set({ key: SESSION_KEY, value: JSON.stringify(persistable) });
   }, [tabs]);
 
